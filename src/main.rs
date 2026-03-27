@@ -1,9 +1,12 @@
 #![windows_subsystem = "windows"]
 
 use eframe::egui;
+use fluent::{FluentArgs, FluentBundle, FluentResource};
 use once_cell::sync::Lazy;
 use plotters::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use unic_langid::LanguageIdentifier;
 
 // --- CONFIGURATION PAR DÉFAUT ---
 const DEFAULT_K_FACTOR: f64 = 1.0;
@@ -50,6 +53,7 @@ struct AppSettings {
     selected_lens_idx: usize,
     latitude: f64,
     selected_season: String,
+    language: String,
 }
 
 impl Default for AppSettings {
@@ -76,6 +80,7 @@ impl Default for AppSettings {
             selected_lens_idx: 0,
             latitude: 45.0,
             selected_season: "Toutes".to_string(),
+            language: "fr".to_string(),
         }
     }
 }
@@ -93,336 +98,302 @@ pub enum TargetType {
 pub struct Target {
     pub target_type: TargetType,
     pub id: Option<&'static str>,
-    pub nom: &'static str,
-    pub latin: &'static str,
+    pub name_key: &'static str,
+    pub latin_key: &'static str,
     pub abbr: Option<&'static str>,
-    pub parent: Option<&'static str>,
-    pub saison: &'static str,
+    pub parent_key: Option<&'static str>,
+    pub season_key: &'static str,
     pub dec: f64,
 }
 
 pub static TARGETS: Lazy<Vec<Target>> = Lazy::new(|| {
     vec![
-        Target { target_type: TargetType::Constellation, id: None, nom: "Andromède", latin: "Andromeda", abbr: Some("And"), parent: None, saison: "Automne", dec: 37.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Aigle", latin: "Aquila", abbr: Some("Aql"), parent: None, saison: "Été", dec: 3.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Verseau", latin: "Aquarius", abbr: Some("Aqr"), parent: None, saison: "Automne", dec: -10.0 }, // Sud
-        Target { target_type: TargetType::Constellation, id: None, nom: "Bélier", latin: "Aries", abbr: Some("Ari"), parent: None, saison: "Automne", dec: 20.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Cocher", latin: "Auriga", abbr: Some("Aur"), parent: None, saison: "Hiver", dec: 42.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Bouvier", latin: "Bootes", abbr: Some("Boo"), parent: None, saison: "Printemps", dec: 28.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Girafe", latin: "Camelopardalis", abbr: Some("Cam"), parent: None, saison: "Circumpolaire N", dec: 70.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Cancer", latin: "Cancer", abbr: Some("Cnc"), parent: None, saison: "Printemps", dec: 20.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Chiens de Chasse", latin: "Canes Venatici", abbr: Some("CVn"), parent: None, saison: "Printemps", dec: 40.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Petit Chien", latin: "Canis Minor", abbr: Some("CMi"), parent: None, saison: "Hiver", dec: 5.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Cassiopée", latin: "Cassiopeia", abbr: Some("Cas"), parent: None, saison: "Circumpolaire N", dec: 60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Céphée", latin: "Cepheus", abbr: Some("Cep"), parent: None, saison: "Circumpolaire N", dec: 70.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Chevelure de Bérénice", latin: "Coma Berenices", abbr: Some("Com"), parent: None, saison: "Printemps", dec: 23.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Couronne Boréale", latin: "Corona Borealis", abbr: Some("CrB"), parent: None, saison: "Printemps", dec: 30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Cygne", latin: "Cygnus", abbr: Some("Cyg"), parent: None, saison: "Été", dec: 42.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Dauphin", latin: "Delphinus", abbr: Some("Del"), parent: None, saison: "Été", dec: 12.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Dragon", latin: "Draco", abbr: Some("Dra"), parent: None, saison: "Circumpolaire N", dec: 65.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Petit Cheval", latin: "Equuleus", abbr: Some("Equ"), parent: None, saison: "Automne", dec: 7.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Gémeaux", latin: "Gemini", abbr: Some("Gem"), parent: None, saison: "Hiver", dec: 22.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Hercule", latin: "Hercules", abbr: Some("Her"), parent: None, saison: "Été", dec: 27.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Lézard", latin: "Lacerta", abbr: Some("Lac"), parent: None, saison: "Automne", dec: 45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Lion", latin: "Leo", abbr: Some("Leo"), parent: None, saison: "Printemps", dec: 15.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Petit Lion", latin: "Leo Minor", abbr: Some("LMi"), parent: None, saison: "Printemps", dec: 35.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Lynx", latin: "Lynx", abbr: Some("Lyn"), parent: None, saison: "Hiver", dec: 45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Lyre", latin: "Lyra", abbr: Some("Lyr"), parent: None, saison: "Été", dec: 38.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Licorne", latin: "Monoceros", abbr: Some("Mon"), parent: None, saison: "Hiver", dec: -3.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Ophiuchus", latin: "Ophiuchus", abbr: Some("Oph"), parent: None, saison: "Été", dec: -7.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Orion", latin: "Orion", abbr: Some("Ori"), parent: None, saison: "Hiver", dec: 5.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Pégase", latin: "Pegasus", abbr: Some("Peg"), parent: None, saison: "Automne", dec: 20.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Persée", latin: "Perseus", abbr: Some("Per"), parent: None, saison: "Automne", dec: 45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Poissons", latin: "Pisces", abbr: Some("Psc"), parent: None, saison: "Automne", dec: 15.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Flèche", latin: "Sagitta", abbr: Some("Sge"), parent: None, saison: "Été", dec: 18.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Serpent", latin: "Serpens", abbr: Some("Ser"), parent: None, saison: "Été", dec: 0.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Sextant", latin: "Sextans", abbr: Some("Sex"), parent: None, saison: "Printemps", dec: -2.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Taureau", latin: "Taurus", abbr: Some("Tau"), parent: None, saison: "Hiver", dec: 16.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Triangle", latin: "Triangulum", abbr: Some("Tri"), parent: None, saison: "Automne", dec: 32.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Grande Ourse", latin: "Ursa Major", abbr: Some("UMa"), parent: None, saison: "Circumpolaire N", dec: 50.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Petite Ourse", latin: "Ursa Minor", abbr: Some("UMi"), parent: None, saison: "Circumpolaire N", dec: 75.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Vierge", latin: "Virgo", abbr: Some("Vir"), parent: None, saison: "Printemps", dec: 0.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Petit Renard", latin: "Vulpecula", abbr: Some("Vul"), parent: None, saison: "Été", dec: 25.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Machine Pneumatique", latin: "Antlia", abbr: Some("Ant"), parent: None, saison: "Printemps", dec: -35.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Oiseau de Paradis", latin: "Apus", abbr: Some("Aps"), parent: None, saison: "Circumpolaire S", dec: -75.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Autel", latin: "Ara", abbr: Some("Ara"), parent: None, saison: "Été", dec: -53.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Burin", latin: "Caelum", abbr: Some("Cae"), parent: None, saison: "Hiver", dec: -38.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Grand Chien", latin: "Canis Major", abbr: Some("CMa"), parent: None, saison: "Hiver", dec: -22.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Capricorne", latin: "Capricornus", abbr: Some("Cap"), parent: None, saison: "Automne", dec: -20.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Carène", latin: "Carina", abbr: Some("Car"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Centaure", latin: "Centaurus", abbr: Some("Cen"), parent: None, saison: "Printemps", dec: -45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Baleine", latin: "Cetus", abbr: Some("Cet"), parent: None, saison: "Automne", dec: -8.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Caméléon", latin: "Chamaeleon", abbr: Some("Cha"), parent: None, saison: "Circumpolaire S", dec: -75.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Circin", latin: "Circinus", abbr: Some("Cir"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Colombe", latin: "Columba", abbr: Some("Col"), parent: None, saison: "Hiver", dec: -35.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Couronne Australe", latin: "Corona Australis", abbr: Some("CrA"), parent: None, saison: "Été", dec: -40.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Corbeau", latin: "Corvus", abbr: Some("Crv"), parent: None, saison: "Printemps", dec: -18.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Coupe", latin: "Crater", abbr: Some("Crt"), parent: None, saison: "Printemps", dec: -15.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Croix du Sud", latin: "Crux", abbr: Some("Cru"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Dorade", latin: "Dorado", abbr: Some("Dor"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Éridan", latin: "Eridanus", abbr: Some("Eri"), parent: None, saison: "Hiver", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Fourneau", latin: "Fornax", abbr: Some("For"), parent: None, saison: "Automne", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Grue", latin: "Grus", abbr: Some("Gru"), parent: None, saison: "Automne", dec: -45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Horloge", latin: "Horologium", abbr: Some("Hor"), parent: None, saison: "Hiver", dec: -50.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Hydre", latin: "Hydra", abbr: Some("Hya"), parent: None, saison: "Printemps", dec: -20.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Hydre Mâle", latin: "Hydrus", abbr: Some("Hyi"), parent: None, saison: "Circumpolaire S", dec: -70.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Indien", latin: "Indus", abbr: Some("Ind"), parent: None, saison: "Été", dec: -55.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Lièvre", latin: "Lepus", abbr: Some("Lep"), parent: None, saison: "Hiver", dec: -18.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Balance", latin: "Libra", abbr: Some("Lib"), parent: None, saison: "Printemps", dec: -15.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Loup", latin: "Lupus", abbr: Some("Lup"), parent: None, saison: "Été", dec: -40.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Table", latin: "Mensa", abbr: Some("Men"), parent: None, saison: "Circumpolaire S", dec: -75.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Microscope", latin: "Microscopium", abbr: Some("Mic"), parent: None, saison: "Automne", dec: -35.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Mouche", latin: "Musca", abbr: Some("Mus"), parent: None, saison: "Circumpolaire S", dec: -70.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Règle", latin: "Norma", abbr: Some("Nor"), parent: None, saison: "Été", dec: -50.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Octant", latin: "Octans", abbr: Some("Oct"), parent: None, saison: "Circumpolaire S", dec: -85.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Paon", latin: "Pavo", abbr: Some("Pav"), parent: None, saison: "Circumpolaire S", dec: -65.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Phénix", latin: "Phoenix", abbr: Some("Phe"), parent: None, saison: "Automne", dec: -45.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Peintre", latin: "Pictor", abbr: Some("Pic"), parent: None, saison: "Hiver", dec: -55.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Poisson Austral", latin: "Piscis Austrinus", abbr: Some("PsA"), parent: None, saison: "Automne", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Poupe", latin: "Puppis", abbr: Some("Pup"), parent: None, saison: "Hiver", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Boussole", latin: "Pyxis", abbr: Some("Pyx"), parent: None, saison: "Printemps", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Sagittaire", latin: "Sagittarius", abbr: Some("Sgr"), parent: None, saison: "Été", dec: -25.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Scorpion", latin: "Scorpius", abbr: Some("Sco"), parent: None, saison: "Été", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Sculpteur", latin: "Sculptor", abbr: Some("Scl"), parent: None, saison: "Automne", dec: -30.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Écu de Sobieski", latin: "Scutum", abbr: Some("Sct"), parent: None, saison: "Été", dec: -10.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Télescope", latin: "Telescopium", abbr: Some("Tel"), parent: None, saison: "Été", dec: -50.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Triangle Austral", latin: "Triangulum Australe", abbr: Some("TrA"), parent: None, saison: "Circumpolaire S", dec: -65.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Toucan", latin: "Tucana", abbr: Some("Tuc"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Voiles", latin: "Vela", abbr: Some("Vel"), parent: None, saison: "Printemps", dec: -50.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Poisson Volant", latin: "Volans", abbr: Some("Vol"), parent: None, saison: "Circumpolaire S", dec: -70.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Réticule", latin: "Reticulum", abbr: Some("Ret"), parent: None, saison: "Circumpolaire S", dec: -60.0 },
-        Target { target_type: TargetType::Constellation, id: None, nom: "Burin", latin: "Caelum", abbr: Some("Cae"), parent: None, saison: "Hiver", dec: -38.0 },
-
-        Target { target_type: TargetType::Messier, id: Some("M1"), nom: "Nébuleuse du Crabe", latin: "Taurus", abbr: None, parent: Some("Taureau"), saison: "Hiver", dec: 22.0 },
-        Target { target_type: TargetType::Messier, id: Some("M2"), nom: "Amas du Verseau", latin: "Aquarius", abbr: None, parent: Some("Verseau"), saison: "Automne", dec: -0.8 },
-        Target { target_type: TargetType::Messier, id: Some("M3"), nom: "Amas globulaire", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 28.4 },
-        Target { target_type: TargetType::Messier, id: Some("M4"), nom: "Amas du Scorpion", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -26.5 },
-        Target { target_type: TargetType::Messier, id: Some("M5"), nom: "Amas du Serpent", latin: "Serpens", abbr: None, parent: Some("Serpent"), saison: "Printemps", dec: 2.1 },
-        Target { target_type: TargetType::Messier, id: Some("M6"), nom: "Amas du Papillon", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -32.2 },
-        Target { target_type: TargetType::Messier, id: Some("M7"), nom: "Amas de Ptolémée", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -34.8 },
-        Target { target_type: TargetType::Messier, id: Some("M8"), nom: "Nébuleuse de la Lagune", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -24.4 },
-        Target { target_type: TargetType::Messier, id: Some("M9"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -18.5 },
-        Target { target_type: TargetType::Messier, id: Some("M10"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -4.1 },
-
-        Target { target_type: TargetType::Messier, id: Some("M11"), nom: "Amas du Canard Sauvage", latin: "Scutum", abbr: None, parent: Some("Écu de Sobieski"), saison: "Été", dec: -6.3 },
-        Target { target_type: TargetType::Messier, id: Some("M12"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -2.0 },
-        Target { target_type: TargetType::Messier, id: Some("M13"), nom: "Grand Amas d'Hercule", latin: "Hercules", abbr: None, parent: Some("Hercule"), saison: "Été", dec: 36.5 },
-        Target { target_type: TargetType::Messier, id: Some("M14"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -3.2 },
-        Target { target_type: TargetType::Messier, id: Some("M15"), nom: "Amas de Pégase", latin: "Pegasus", abbr: None, parent: Some("Pégase"), saison: "Automne", dec: 12.2 },
-        Target { target_type: TargetType::Messier, id: Some("M16"), nom: "Nébuleuse de l'Aigle", latin: "Serpens", abbr: None, parent: Some("Serpent"), saison: "Été", dec: -13.8 },
-        Target { target_type: TargetType::Messier, id: Some("M17"), nom: "Nébuleuse Oméga", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -16.2 },
-        Target { target_type: TargetType::Messier, id: Some("M18"), nom: "Amas ouvert", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -17.1 },
-        Target { target_type: TargetType::Messier, id: Some("M19"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -26.3 },
-        Target { target_type: TargetType::Messier, id: Some("M20"), nom: "Nébuleuse Trifide", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -23.0 },
-
-        Target { target_type: TargetType::Messier, id: Some("M21"), nom: "Amas ouvert", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -22.5 },
-        Target { target_type: TargetType::Messier, id: Some("M22"), nom: "Grand Amas du Sagittaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -23.9 },
-        Target { target_type: TargetType::Messier, id: Some("M23"), nom: "Amas ouvert", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -19.0 },
-        Target { target_type: TargetType::Messier, id: Some("M24"), nom: "Nuage stellaire du Sagittaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -18.4 },
-        Target { target_type: TargetType::Messier, id: Some("M25"), nom: "Amas ouvert", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -19.1 },
-        Target { target_type: TargetType::Messier, id: Some("M26"), nom: "Amas ouvert", latin: "Scutum", abbr: None, parent: Some("Écu de Sobieski"), saison: "Été", dec: -9.4 },
-        Target { target_type: TargetType::Messier, id: Some("M27"), nom: "Nébuleuse Dumbbell", latin: "Vulpecula", abbr: None, parent: Some("Petit Renard"), saison: "Été", dec: 22.7 },
-        Target { target_type: TargetType::Messier, id: Some("M28"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -24.9 },
-        Target { target_type: TargetType::Messier, id: Some("M29"), nom: "Amas ouvert", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 38.5 },
-        Target { target_type: TargetType::Messier, id: Some("M30"), nom: "Amas du Capricorne", latin: "Capricornus", abbr: None, parent: Some("Capricorne"), saison: "Automne", dec: -23.2 },
-
-        Target { target_type: TargetType::Messier, id: Some("M31"), nom: "Galaxie d'Andromède", latin: "Andromeda", abbr: None, parent: Some("Andromède"), saison: "Automne", dec: 41.3 },
-        Target { target_type: TargetType::Messier, id: Some("M32"), nom: "Galaxie satellite d'Andromède", latin: "Andromeda", abbr: None, parent: Some("Andromède"), saison: "Automne", dec: 40.9 },
-        Target { target_type: TargetType::Messier, id: Some("M33"), nom: "Galaxie du Triangle", latin: "Triangulum", abbr: None, parent: Some("Triangle"), saison: "Automne", dec: 30.7 },
-        Target { target_type: TargetType::Messier, id: Some("M34"), nom: "Amas ouvert", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Automne", dec: 42.8 },
-        Target { target_type: TargetType::Messier, id: Some("M35"), nom: "Amas ouvert", latin: "Gemini", abbr: None, parent: Some("Gémeaux"), saison: "Hiver", dec: 24.3 },
-        Target { target_type: TargetType::Messier, id: Some("M36"), nom: "Amas ouvert", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 34.1 },
-        Target { target_type: TargetType::Messier, id: Some("M37"), nom: "Amas ouvert", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 32.5 },
-        Target { target_type: TargetType::Messier, id: Some("M38"), nom: "Amas ouvert", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 35.8 },
-        Target { target_type: TargetType::Messier, id: Some("M39"), nom: "Amas ouvert", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 48.4 },
-        Target { target_type: TargetType::Messier, id: Some("M40"), nom: "Étoile double Winnecke 4", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 58.1 },
-
-        Target { target_type: TargetType::Messier, id: Some("M41"), nom: "Amas ouvert", latin: "Canis Major", abbr: None, parent: Some("Grand Chien"), saison: "Hiver", dec: -20.7 },
-        Target { target_type: TargetType::Messier, id: Some("M42"), nom: "Nébuleuse d'Orion", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -5.4 },
-        Target { target_type: TargetType::Messier, id: Some("M43"), nom: "Nébuleuse de Mairan", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -5.3 },
-        Target { target_type: TargetType::Messier, id: Some("M44"), nom: "Amas de la Crèche", latin: "Cancer", abbr: None, parent: Some("Cancer"), saison: "Printemps", dec: 19.7 },
-        Target { target_type: TargetType::Messier, id: Some("M45"), nom: "Les Pléiades", latin: "Taurus", abbr: None, parent: Some("Taureau"), saison: "Hiver", dec: 24.1 },
-        Target { target_type: TargetType::Messier, id: Some("M46"), nom: "Amas ouvert", latin: "Puppis", abbr: None, parent: Some("Poupe"), saison: "Hiver", dec: -14.8 },
-        Target { target_type: TargetType::Messier, id: Some("M47"), nom: "Amas ouvert", latin: "Puppis", abbr: None, parent: Some("Poupe"), saison: "Hiver", dec: -14.4 },
-        Target { target_type: TargetType::Messier, id: Some("M48"), nom: "Amas ouvert", latin: "Hydra", abbr: None, parent: Some("Hydre"), saison: "Hiver", dec: -5.8 },
-        Target { target_type: TargetType::Messier, id: Some("M49"), nom: "Galaxie elliptique", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 8.0 },
-        Target { target_type: TargetType::Messier, id: Some("M50"), nom: "Amas ouvert", latin: "Monoceros", abbr: None, parent: Some("Licorne"), saison: "Hiver", dec: -8.3 },
-
-        Target { target_type: TargetType::Messier, id: Some("M51"), nom: "Galaxie du Tourbillon", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 47.2 },
-        Target { target_type: TargetType::Messier, id: Some("M52"), nom: "Amas ouvert", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 61.6 },
-        Target { target_type: TargetType::Messier, id: Some("M53"), nom: "Amas globulaire", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 18.2 },
-        Target { target_type: TargetType::Messier, id: Some("M54"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -30.5 },
-        Target { target_type: TargetType::Messier, id: Some("M55"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -31.0 },
-        Target { target_type: TargetType::Messier, id: Some("M56"), nom: "Amas globulaire", latin: "Lyra", abbr: None, parent: Some("Lyre"), saison: "Été", dec: 30.2 },
-        Target { target_type: TargetType::Messier, id: Some("M57"), nom: "Nébuleuse de l'Anneau", latin: "Lyra", abbr: None, parent: Some("Lyre"), saison: "Été", dec: 33.0 },
-        Target { target_type: TargetType::Messier, id: Some("M58"), nom: "Galaxie spirale", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 11.8 },
-        Target { target_type: TargetType::Messier, id: Some("M59"), nom: "Galaxie elliptique", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 11.6 },
-        Target { target_type: TargetType::Messier, id: Some("M60"), nom: "Galaxie elliptique", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 11.5 },
-
-        Target { target_type: TargetType::Messier, id: Some("M61"), nom: "Galaxie spirale", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 4.5 },
-        Target { target_type: TargetType::Messier, id: Some("M62"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -30.1 },
-        Target { target_type: TargetType::Messier, id: Some("M63"), nom: "Galaxie du Tournesol", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 42.0 },
-        Target { target_type: TargetType::Messier, id: Some("M64"), nom: "Galaxie de l'Oeil Noir", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 21.7 },
-        Target { target_type: TargetType::Messier, id: Some("M65"), nom: "Galaxie du Lion", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 13.1 },
-        Target { target_type: TargetType::Messier, id: Some("M66"), nom: "Galaxie du Lion", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 13.0 },
-        Target { target_type: TargetType::Messier, id: Some("M67"), nom: "Amas ouvert", latin: "Cancer", abbr: None, parent: Some("Cancer"), saison: "Printemps", dec: 11.8 },
-        Target { target_type: TargetType::Messier, id: Some("M68"), nom: "Amas globulaire", latin: "Hydra", abbr: None, parent: Some("Hydre"), saison: "Printemps", dec: -26.7 },
-        Target { target_type: TargetType::Messier, id: Some("M69"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -32.3 },
-        Target { target_type: TargetType::Messier, id: Some("M70"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -32.3 },
-
-        Target { target_type: TargetType::Messier, id: Some("M71"), nom: "Amas globulaire", latin: "Sagitta", abbr: None, parent: Some("Flèche"), saison: "Été", dec: 18.8 },
-        Target { target_type: TargetType::Messier, id: Some("M72"), nom: "Amas globulaire", latin: "Aquarius", abbr: None, parent: Some("Verseau"), saison: "Automne", dec: -12.5 },
-        Target { target_type: TargetType::Messier, id: Some("M73"), nom: "Astérisme", latin: "Aquarius", abbr: None, parent: Some("Verseau"), saison: "Automne", dec: -12.6 },
-        Target { target_type: TargetType::Messier, id: Some("M74"), nom: "Galaxie spirale", latin: "Pisces", abbr: None, parent: Some("Poissons"), saison: "Automne", dec: 15.8 },
-        Target { target_type: TargetType::Messier, id: Some("M75"), nom: "Amas globulaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -21.9 },
-        Target { target_type: TargetType::Messier, id: Some("M76"), nom: "Petit Haltère", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Automne", dec: 51.6 },
-        Target { target_type: TargetType::Messier, id: Some("M77"), nom: "Galaxie spirale", latin: "Cetus", abbr: None, parent: Some("Baleine"), saison: "Automne", dec: -0.0 },
-        Target { target_type: TargetType::Messier, id: Some("M78"), nom: "Nébuleuse par réflexion", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: 0.1 },
-        Target { target_type: TargetType::Messier, id: Some("M79"), nom: "Amas globulaire", latin: "Lepus", abbr: None, parent: Some("Lièvre"), saison: "Hiver", dec: -24.5 },
-        Target { target_type: TargetType::Messier, id: Some("M80"), nom: "Amas globulaire", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -23.0 },
-
-        Target { target_type: TargetType::Messier, id: Some("M81"), nom: "Galaxie de Bode", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 69.1 },
-        Target { target_type: TargetType::Messier, id: Some("M82"), nom: "Galaxie du Cigare", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 69.7 },
-        Target { target_type: TargetType::Messier, id: Some("M83"), nom: "Galaxie du Moulinet Austral", latin: "Hydra", abbr: None, parent: Some("Hydre"), saison: "Printemps", dec: -29.9 },
-        Target { target_type: TargetType::Messier, id: Some("M84"), nom: "Galaxie lenticulaire", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 12.9 },
-        Target { target_type: TargetType::Messier, id: Some("M85"), nom: "Galaxie lenticulaire", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 18.2 },
-        Target { target_type: TargetType::Messier, id: Some("M86"), nom: "Galaxie lenticulaire", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 12.9 },
-        Target { target_type: TargetType::Messier, id: Some("M87"), nom: "Virgo A", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 12.4 },
-        Target { target_type: TargetType::Messier, id: Some("M88"), nom: "Galaxie spirale", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 14.4 },
-        Target { target_type: TargetType::Messier, id: Some("M89"), nom: "Galaxie elliptique", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 12.6 },
-        Target { target_type: TargetType::Messier, id: Some("M90"), nom: "Galaxie spirale", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 13.2 },
-
-        Target { target_type: TargetType::Messier, id: Some("M91"), nom: "Galaxie spirale", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 14.5 },
-        Target { target_type: TargetType::Messier, id: Some("M92"), nom: "Amas globulaire", latin: "Hercules", abbr: None, parent: Some("Hercule"), saison: "Été", dec: 43.1 },
-        Target { target_type: TargetType::Messier, id: Some("M93"), nom: "Amas ouvert", latin: "Puppis", abbr: None, parent: Some("Poupe"), saison: "Hiver", dec: -23.8 },
-        Target { target_type: TargetType::Messier, id: Some("M94"), nom: "Galaxie de l'Oeil de Croco", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 41.1 },
-        Target { target_type: TargetType::Messier, id: Some("M95"), nom: "Galaxie spirale", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 11.7 },
-        Target { target_type: TargetType::Messier, id: Some("M96"), nom: "Galaxie spirale", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 11.8 },
-        Target { target_type: TargetType::Messier, id: Some("M97"), nom: "Nébuleuse du Hibou", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 55.0 },
-        Target { target_type: TargetType::Messier, id: Some("M98"), nom: "Galaxie spirale", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 14.9 },
-        Target { target_type: TargetType::Messier, id: Some("M99"), nom: "Galaxie spirale", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 14.4 },
-        Target { target_type: TargetType::Messier, id: Some("M100"), nom: "Galaxie spirale", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 15.8 },
-
-        Target { target_type: TargetType::Messier, id: Some("M101"), nom: "Galaxie du Moulinet", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 54.4 },
-        Target { target_type: TargetType::Messier, id: Some("M102"), nom: "Galaxie du Fuseau", latin: "Draco", abbr: None, parent: Some("Dragon"), saison: "Circumpolaire N", dec: 55.8 },
-        Target { target_type: TargetType::Messier, id: Some("M103"), nom: "Amas ouvert", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 60.7 },
-        Target { target_type: TargetType::Messier, id: Some("M104"), nom: "Galaxie du Sombrero", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: -11.6 },
-        Target { target_type: TargetType::Messier, id: Some("M105"), nom: "Galaxie elliptique", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 12.6 },
-        Target { target_type: TargetType::Messier, id: Some("M106"), nom: "Galaxie spirale", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 47.3 },
-        Target { target_type: TargetType::Messier, id: Some("M107"), nom: "Amas globulaire", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -13.0 },
-        Target { target_type: TargetType::Messier, id: Some("M108"), nom: "Galaxie de la Planche de Surf", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 53.4 },
-        Target { target_type: TargetType::Messier, id: Some("M109"), nom: "Galaxie spirale", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 53.4 },
-        Target { target_type: TargetType::Messier, id: Some("M110"), nom: "Galaxie satellite d'Andromède", latin: "Andromeda", abbr: None, parent: Some("Andromède"), saison: "Automne", dec: 41.7 },
-
-        Target { target_type: TargetType::Galaxy, id: Some("M31"), nom: "Galaxie d'Andromède", latin: "Andromeda", abbr: None, parent: Some("Andromède"), saison: "Automne", dec: 41.26 },
-        Target { target_type: TargetType::Galaxy, id: Some("M33"), nom: "Galaxie du Triangle", latin: "Triangulum", abbr: None, parent: Some("Triangle"), saison: "Automne", dec: 30.66 },
-        Target { target_type: TargetType::Galaxy, id: Some("M51"), nom: "Galaxie du Tourbillon", latin: "Canes Venatici", abbr: Some("NGC 5194"), parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 47.19 },
-        Target { target_type: TargetType::Galaxy, id: Some("M81"), nom: "Galaxie de Bode", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 69.06 },
-        Target { target_type: TargetType::Galaxy, id: Some("M82"), nom: "Galaxie du Cigare", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 69.68 },
-        Target { target_type: TargetType::Galaxy, id: Some("M101"), nom: "Galaxie du Moulinet", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 54.35 },
-        Target { target_type: TargetType::Galaxy, id: Some("M63"), nom: "Galaxie du Tournesol", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 42.03 },
-        Target { target_type: TargetType::Galaxy, id: Some("M64"), nom: "Galaxie de l'Oeil Noir", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 21.68 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 4565"), nom: "Galaxie de l'Aiguille", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 25.98 },
-        Target { target_type: TargetType::Galaxy, id: Some("M104"), nom: "Galaxie du Sombrero", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: -11.62 }, // Sud
-
-        // --- GALAXIES MAJEURES (Hémisphère Sud) ---
-        Target { target_type: TargetType::Galaxy, id: Some("LMC"), nom: "Grand Nuage de Magellan", latin: "Dorado", abbr: None, parent: Some("Dorade"), saison: "Circumpolaire S", dec: -69.75 },
-        Target { target_type: TargetType::Galaxy, id: Some("SMC"), nom: "Petit Nuage de Magellan", latin: "Tucana", abbr: None, parent: Some("Toucan"), saison: "Circumpolaire S", dec: -72.80 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 5128"), nom: "Centaurus A", latin: "Centaurus", abbr: None, parent: Some("Centaure"), saison: "Printemps", dec: -43.01 },
-        Target { target_type: TargetType::Galaxy, id: Some("M83"), nom: "Galaxie du Moulinet Austral", latin: "Hydra", abbr: None, parent: Some("Hydre"), saison: "Printemps", dec: -29.86 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 253"), nom: "Galaxie du Sculpteur", latin: "Sculptor", abbr: None, parent: Some("Sculpteur"), saison: "Automne", dec: -25.29 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 300"), nom: "Galaxie du Sculpteur (Sud)", latin: "Sculptor", abbr: None, parent: Some("Sculpteur"), saison: "Automne", dec: -37.68 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 4945"), nom: "Galaxie de la Tresse", latin: "Centaurus", abbr: None, parent: Some("Centaure"), saison: "Printemps", dec: -49.47 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 1316"), nom: "Fornax A", latin: "Fornax", abbr: None, parent: Some("Fourneau"), saison: "Automne", dec: -37.20 },
-
-        // --- TRIO DU LION & AUTRES GROUPES ---
-        Target { target_type: TargetType::Galaxy, id: Some("M65"), nom: "Membre du Trio du Lion", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 13.09 },
-        Target { target_type: TargetType::Galaxy, id: Some("M66"), nom: "Membre du Trio du Lion", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 12.99 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 3628"), nom: "Galaxie du Hamburger", latin: "Leo", abbr: None, parent: Some("Lion"), saison: "Printemps", dec: 13.59 },
-
-        // --- CHAINES ET AMAS ---
-        Target { target_type: TargetType::Galaxy, id: Some("M87"), nom: "Virgo A (Centre Amas Vierge)", latin: "Virgo", abbr: None, parent: Some("Vierge"), saison: "Printemps", dec: 12.39 },
-        Target { target_type: TargetType::Galaxy, id: Some("NGC 4038"), nom: "Galaxies des Antennes", latin: "Corvus", abbr: None, parent: Some("Corbeau"), saison: "Printemps", dec: -18.87 },
-
-        // --- HIVER (Le règne d'Orion et des licornes) ---
-        Target { target_type: TargetType::Nebula, id: Some("M42"), nom: "Grande Nébuleuse d'Orion", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -5.39 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 434"), nom: "Tête de Cheval", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -2.45 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 2024"), nom: "Nébuleuse de la Flamme", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -1.86 },
-        Target { target_type: TargetType::Nebula, id: Some("Sh2-276"), nom: "Boucle de Barnard", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: -1.00 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 2118"), nom: "Tête de Sorcière", latin: "Eridanus", abbr: None, parent: Some("Éridan"), saison: "Hiver", dec: -7.25 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 2237"), nom: "La Rosette", latin: "Monoceros", abbr: None, parent: Some("Licorne"), saison: "Hiver", dec: 4.97 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 2264"), nom: "Le Cône / Arbre de Noël", latin: "Monoceros", abbr: None, parent: Some("Licorne"), saison: "Hiver", dec: 9.89 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 405"), nom: "L'Étoile Flamboyante", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 34.35 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 443"), nom: "Nébuleuse de la Méduse", latin: "Gemini", abbr: None, parent: Some("Gémeaux"), saison: "Hiver", dec: 22.47 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 2174"), nom: "Tête de Singe", latin: "Orion", abbr: None, parent: Some("Orion"), saison: "Hiver", dec: 20.50 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 1499"), nom: "Nébuleuse California", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Hiver", dec: 36.42 },
-
-        // --- PRINTEMPS (La saison des Galaxies, mais quelques nébuleuses du Sud) ---
-        Target { target_type: TargetType::Nebula, id: Some("NGC 3372"), nom: "Grande Carène", latin: "Carina", abbr: None, parent: Some("Carène"), saison: "Printemps", dec: -59.87 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 2944"), nom: "Poulet qui Court", latin: "Centaurus", abbr: None, parent: Some("Centaure"), saison: "Printemps", dec: -63.02 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 3576"), nom: "Statue de la Liberté", latin: "Carina", abbr: None, parent: Some("Carène"), saison: "Printemps", dec: -61.30 },
-        Target { target_type: TargetType::Nebula, id: Some("M97"), nom: "Nébuleuse du Hibou", latin: "Ursa Major", abbr: None, parent: Some("Grande Ourse"), saison: "Printemps", dec: 55.02 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 3242"), nom: "Fantôme de Jupiter", latin: "Hydra", abbr: None, parent: Some("Hydre"), saison: "Printemps", dec: -18.63 },
-        Target { target_type: TargetType::Nebula, id: Some("M16"), nom: "L'Aigle", latin: "Serpens", abbr: None, parent: Some("Serpent"), saison: "Printemps", dec: -13.81 }, // Se lève en fin de nuit
-
-
-        // --- ÉTÉ (Le long de la Voie Lactée) ---
-        Target { target_type: TargetType::Nebula, id: Some("M8"), nom: "La Lagune", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -24.38 },
-        Target { target_type: TargetType::Nebula, id: Some("M20"), nom: "Trifide", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -23.03 },
-        Target { target_type: TargetType::Nebula, id: Some("M16"), nom: "L'Aigle", latin: "Serpens", abbr: None, parent: Some("Serpent"), saison: "Été", dec: -13.80 },
-        Target { target_type: TargetType::Nebula, id: Some("M17"), nom: "Oméga / Cygne", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -16.18 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 4604"), nom: "Rho Ophiuchi", latin: "Ophiuchus", abbr: None, parent: Some("Ophiuchus"), saison: "Été", dec: -24.35 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 6357"), nom: "Guerre et Paix", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -34.20 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 6334"), nom: "Patte de Chat", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -35.95 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 7000"), nom: "North America", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 44.33 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 5070"), nom: "Le Pélican", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 44.13 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 6960"), nom: "Dentelles du Cygne (Ouest)", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 30.70 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 6992"), nom: "Dentelles du Cygne (Est)", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 31.70 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 6888"), nom: "Le Croissant", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 38.35 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 1318"), nom: "Région de Sadr", latin: "Cygnus", abbr: None, parent: Some("Cygne"), saison: "Été", dec: 40.25 },
-        Target { target_type: TargetType::Nebula, id: Some("LDN 673"), nom: "Nébuleuse sombre de l'Aigle", latin: "Aquila", abbr: None, parent: Some("Aigle"), saison: "Été", dec: 1.00 },
-
-        // --- AUTOMNE (Objets plus lointains ou circumpolaires) ---
-        Target { target_type: TargetType::Nebula, id: Some("IC 1805"), nom: "Le Coeur", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 61.45 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 1848"), nom: "L'Âme", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 60.40 },
-        Target { target_type: TargetType::Nebula, id: Some("IC 1396"), nom: "Trompe d'Éléphant", latin: "Cepheus", abbr: None, parent: Some("Céphée"), saison: "Automne", dec: 57.50 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 281"), nom: "Pacman", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 56.62 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 7635"), nom: "La Bulle", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 61.20 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 7023"), nom: "L'Iris", latin: "Cepheus", abbr: None, parent: Some("Céphée"), saison: "Automne", dec: 68.16 },
-        Target { target_type: TargetType::Nebula, id: Some("NGC 7293"), nom: "Hélice", latin: "Aquarius", abbr: None, parent: Some("Verseau"), saison: "Automne", dec: -20.80 },
-
-        Target { target_type: TargetType::Cluster, id: Some("M45"), nom: "Les Pléiades", latin: "Taurus", abbr: None, parent: Some("Taureau"), saison: "Hiver", dec: 24.12 },
-        Target { target_type: TargetType::Cluster, id: Some("M44"), nom: "Amas de la Crèche", latin: "Cancer", abbr: None, parent: Some("Cancer"), saison: "Printemps", dec: 19.67 },
-        Target { target_type: TargetType::Cluster, id: Some("M35"), nom: "Amas des Gémeaux", latin: "Gemini", abbr: None, parent: Some("Gémeaux"), saison: "Hiver", dec: 24.33 },
-        Target { target_type: TargetType::Cluster, id: Some("M36"), nom: "Amas du Cocher (M36)", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 34.13 },
-        Target { target_type: TargetType::Cluster, id: Some("M37"), nom: "Amas du Cocher (M37)", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 32.55 },
-        Target { target_type: TargetType::Cluster, id: Some("M38"), nom: "Amas de l'Étoile de Mer", latin: "Auriga", abbr: None, parent: Some("Cocher"), saison: "Hiver", dec: 35.83 },
-        Target { target_type: TargetType::Cluster, id: Some("M41"), nom: "Petit Amas du Grand Chien", latin: "Canis Major", abbr: None, parent: Some("Grand Chien"), saison: "Hiver", dec: -20.73 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 869"), nom: "Double Amas de Persée (H)", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Automne", dec: 57.13 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 884"), nom: "Double Amas de Persée (Chi)", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Automne", dec: 57.15 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 2244"), nom: "Amas du Coeur de la Rosette", latin: "Monoceros", abbr: None, parent: Some("Licorne"), saison: "Hiver", dec: 4.87 },
-
-        // --- PRINTEMPS (Les Géants Globulaires) ---
-        Target { target_type: TargetType::Cluster, id: Some("M3"), nom: "Amas globulaire des Chiens de Chasse", latin: "Canes Venatici", abbr: None, parent: Some("Chiens de Chasse"), saison: "Printemps", dec: 28.38 },
-        Target { target_type: TargetType::Cluster, id: Some("M5"), nom: "Amas globulaire du Serpent", latin: "Serpens", abbr: None, parent: Some("Serpent"), saison: "Printemps", dec: 2.08 },
-        Target { target_type: TargetType::Cluster, id: Some("M13"), nom: "Grand Amas d'Hercule", latin: "Hercules", abbr: None, parent: Some("Hercule"), saison: "Été", dec: 36.46 },
-        Target { target_type: TargetType::Cluster, id: Some("M53"), nom: "Amas de la Chevelure de Bérénice", latin: "Coma Berenices", abbr: None, parent: Some("Chevelure de Bérénice"), saison: "Printemps", dec: 18.17 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 5139"), nom: "Oméga Centauri (Le Roi)", latin: "Centaurus", abbr: None, parent: Some("Centaure"), saison: "Printemps", dec: -47.48 },
-
-        // --- ÉTÉ (La Voie Lactée et ses bijoux) ---
-        Target { target_type: TargetType::Cluster, id: Some("M11"), nom: "Amas du Canard Sauvage", latin: "Scutum", abbr: None, parent: Some("Écu de Sobieski"), saison: "Été", dec: -6.27 },
-        Target { target_type: TargetType::Cluster, id: Some("M22"), nom: "Grand Amas du Sagittaire", latin: "Sagittarius", abbr: None, parent: Some("Sagittaire"), saison: "Été", dec: -23.90 },
-        Target { target_type: TargetType::Cluster, id: Some("M6"), nom: "Amas du Papillon", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -32.22 },
-        Target { target_type: TargetType::Cluster, id: Some("M7"), nom: "Amas de Ptolémée", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -34.82 },
-        Target { target_type: TargetType::Cluster, id: Some("M92"), nom: "Amas d'Hercule (M92)", latin: "Hercules", abbr: None, parent: Some("Hercule"), saison: "Été", dec: 43.13 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 6231"), nom: "Faux Comète / Amas du Scorpion", latin: "Scorpius", abbr: None, parent: Some("Scorpion"), saison: "Été", dec: -41.80 },
-
-        // --- AUTOMNE / SUD ---
-        Target { target_type: TargetType::Cluster, id: Some("M15"), nom: "Amas de Pégase", latin: "Pegasus", abbr: None, parent: Some("Pégase"), saison: "Automne", dec: 12.17 },
-        Target { target_type: TargetType::Cluster, id: Some("M2"), nom: "Amas du Verseau", latin: "Aquarius", abbr: None, parent: Some("Verseau"), saison: "Automne", dec: -0.82 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 104"), nom: "47 Tucanae", latin: "Tucana", abbr: None, parent: Some("Toucan"), saison: "Automne", dec: -72.08 }, // Sud
-        Target { target_type: TargetType::Cluster, id: Some("M34"), nom: "Amas de Persée", latin: "Perseus", abbr: None, parent: Some("Persée"), saison: "Automne", dec: 42.78 },
-        Target { target_type: TargetType::Cluster, id: Some("NGC 457"), nom: "Amas de la Chouette / ET", latin: "Cassiopeia", abbr: None, parent: Some("Cassiopée"), saison: "Automne", dec: 58.33 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-andromde", latin_key: "latin-andromeda", abbr: Some("And"), parent_key: None, season_key: "season-autumn", dec: 37.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-aigle", latin_key: "latin-aquila", abbr: Some("Aql"), parent_key: None, season_key: "season-summer", dec: 3.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-verseau", latin_key: "latin-aquarius", abbr: Some("Aqr"), parent_key: None, season_key: "season-autumn", dec: -10.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-blier", latin_key: "latin-aries", abbr: Some("Ari"), parent_key: None, season_key: "season-autumn", dec: 20.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cocher", latin_key: "latin-auriga", abbr: Some("Aur"), parent_key: None, season_key: "season-winter", dec: 42.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-bouvier", latin_key: "latin-bootes", abbr: Some("Boo"), parent_key: None, season_key: "season-spring", dec: 28.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-girafe", latin_key: "latin-camelopardalis", abbr: Some("Cam"), parent_key: None, season_key: "season-circumpolar-n", dec: 70.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cancer", latin_key: "latin-cancer", abbr: Some("Cnc"), parent_key: None, season_key: "season-spring", dec: 20.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-chiens-de-chasse", latin_key: "latin-canes-venatici", abbr: Some("CVn"), parent_key: None, season_key: "season-spring", dec: 40.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-petit-chien", latin_key: "latin-canis-minor", abbr: Some("CMi"), parent_key: None, season_key: "season-winter", dec: 5.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cassiope", latin_key: "latin-cassiopeia", abbr: Some("Cas"), parent_key: None, season_key: "season-circumpolar-n", dec: 60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cphe", latin_key: "latin-cepheus", abbr: Some("Cep"), parent_key: None, season_key: "season-circumpolar-n", dec: 70.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-chevelure-de-brnice", latin_key: "latin-coma-berenices", abbr: Some("Com"), parent_key: None, season_key: "season-spring", dec: 23.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-couronne-borale", latin_key: "latin-corona-borealis", abbr: Some("CrB"), parent_key: None, season_key: "season-spring", dec: 30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cygne", latin_key: "latin-cygnus", abbr: Some("Cyg"), parent_key: None, season_key: "season-summer", dec: 42.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-dauphin", latin_key: "latin-delphinus", abbr: Some("Del"), parent_key: None, season_key: "season-summer", dec: 12.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-dragon", latin_key: "latin-draco", abbr: Some("Dra"), parent_key: None, season_key: "season-circumpolar-n", dec: 65.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-petit-cheval", latin_key: "latin-equuleus", abbr: Some("Equ"), parent_key: None, season_key: "season-autumn", dec: 7.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-gmeaux", latin_key: "latin-gemini", abbr: Some("Gem"), parent_key: None, season_key: "season-winter", dec: 22.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-hercule", latin_key: "latin-hercules", abbr: Some("Her"), parent_key: None, season_key: "season-summer", dec: 27.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-lzard", latin_key: "latin-lacerta", abbr: Some("Lac"), parent_key: None, season_key: "season-autumn", dec: 45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-lion", latin_key: "latin-leo", abbr: Some("Leo"), parent_key: None, season_key: "season-spring", dec: 15.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-petit-lion", latin_key: "latin-leo-minor", abbr: Some("LMi"), parent_key: None, season_key: "season-spring", dec: 35.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-lynx", latin_key: "latin-lynx", abbr: Some("Lyn"), parent_key: None, season_key: "season-winter", dec: 45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-lyre", latin_key: "latin-lyra", abbr: Some("Lyr"), parent_key: None, season_key: "season-summer", dec: 38.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-licorne", latin_key: "latin-monoceros", abbr: Some("Mon"), parent_key: None, season_key: "season-winter", dec: -3.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-ophiuchus", latin_key: "latin-ophiuchus", abbr: Some("Oph"), parent_key: None, season_key: "season-summer", dec: -7.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-orion", latin_key: "latin-orion", abbr: Some("Ori"), parent_key: None, season_key: "season-winter", dec: 5.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-pgase", latin_key: "latin-pegasus", abbr: Some("Peg"), parent_key: None, season_key: "season-autumn", dec: 20.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-perse", latin_key: "latin-perseus", abbr: Some("Per"), parent_key: None, season_key: "season-autumn", dec: 45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-poissons", latin_key: "latin-pisces", abbr: Some("Psc"), parent_key: None, season_key: "season-autumn", dec: 15.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-flche", latin_key: "latin-sagitta", abbr: Some("Sge"), parent_key: None, season_key: "season-summer", dec: 18.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-serpent", latin_key: "latin-serpens", abbr: Some("Ser"), parent_key: None, season_key: "season-summer", dec: 0.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-sextant", latin_key: "latin-sextans", abbr: Some("Sex"), parent_key: None, season_key: "season-spring", dec: -2.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-taureau", latin_key: "latin-taurus", abbr: Some("Tau"), parent_key: None, season_key: "season-winter", dec: 16.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-triangle", latin_key: "latin-triangulum", abbr: Some("Tri"), parent_key: None, season_key: "season-autumn", dec: 32.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-grande-ourse", latin_key: "latin-ursa-major", abbr: Some("UMa"), parent_key: None, season_key: "season-circumpolar-n", dec: 50.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-petite-ourse", latin_key: "latin-ursa-minor", abbr: Some("UMi"), parent_key: None, season_key: "season-circumpolar-n", dec: 75.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-vierge", latin_key: "latin-virgo", abbr: Some("Vir"), parent_key: None, season_key: "season-spring", dec: 0.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-petit-renard", latin_key: "latin-vulpecula", abbr: Some("Vul"), parent_key: None, season_key: "season-summer", dec: 25.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-machine-pneumatique", latin_key: "latin-antlia", abbr: Some("Ant"), parent_key: None, season_key: "season-spring", dec: -35.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-oiseau-de-paradis", latin_key: "latin-apus", abbr: Some("Aps"), parent_key: None, season_key: "season-circumpolar-s", dec: -75.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-autel", latin_key: "latin-ara", abbr: Some("Ara"), parent_key: None, season_key: "season-summer", dec: -53.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-burin", latin_key: "latin-caelum", abbr: Some("Cae"), parent_key: None, season_key: "season-winter", dec: -38.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-grand-chien", latin_key: "latin-canis-major", abbr: Some("CMa"), parent_key: None, season_key: "season-winter", dec: -22.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-capricorne", latin_key: "latin-capricornus", abbr: Some("Cap"), parent_key: None, season_key: "season-autumn", dec: -20.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-carne", latin_key: "latin-carina", abbr: Some("Car"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-centaure", latin_key: "latin-centaurus", abbr: Some("Cen"), parent_key: None, season_key: "season-spring", dec: -45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-baleine", latin_key: "latin-cetus", abbr: Some("Cet"), parent_key: None, season_key: "season-autumn", dec: -8.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-camlon", latin_key: "latin-chamaeleon", abbr: Some("Cha"), parent_key: None, season_key: "season-circumpolar-s", dec: -75.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-circin", latin_key: "latin-circinus", abbr: Some("Cir"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-colombe", latin_key: "latin-columba", abbr: Some("Col"), parent_key: None, season_key: "season-winter", dec: -35.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-couronne-australe", latin_key: "latin-corona-australis", abbr: Some("CrA"), parent_key: None, season_key: "season-summer", dec: -40.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-corbeau", latin_key: "latin-corvus", abbr: Some("Crv"), parent_key: None, season_key: "season-spring", dec: -18.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-coupe", latin_key: "latin-crater", abbr: Some("Crt"), parent_key: None, season_key: "season-spring", dec: -15.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-croix-du-sud", latin_key: "latin-crux", abbr: Some("Cru"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-dorade", latin_key: "latin-dorado", abbr: Some("Dor"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-ridan", latin_key: "latin-eridanus", abbr: Some("Eri"), parent_key: None, season_key: "season-winter", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-fourneau", latin_key: "latin-fornax", abbr: Some("For"), parent_key: None, season_key: "season-autumn", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-grue", latin_key: "latin-grus", abbr: Some("Gru"), parent_key: None, season_key: "season-autumn", dec: -45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-horloge", latin_key: "latin-horologium", abbr: Some("Hor"), parent_key: None, season_key: "season-winter", dec: -50.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-hydre", latin_key: "latin-hydra", abbr: Some("Hya"), parent_key: None, season_key: "season-spring", dec: -20.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-hydre-mle", latin_key: "latin-hydrus", abbr: Some("Hyi"), parent_key: None, season_key: "season-circumpolar-s", dec: -70.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-indien", latin_key: "latin-indus", abbr: Some("Ind"), parent_key: None, season_key: "season-summer", dec: -55.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-livre", latin_key: "latin-lepus", abbr: Some("Lep"), parent_key: None, season_key: "season-winter", dec: -18.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-balance", latin_key: "latin-libra", abbr: Some("Lib"), parent_key: None, season_key: "season-spring", dec: -15.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-loup", latin_key: "latin-lupus", abbr: Some("Lup"), parent_key: None, season_key: "season-summer", dec: -40.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-table", latin_key: "latin-mensa", abbr: Some("Men"), parent_key: None, season_key: "season-circumpolar-s", dec: -75.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-microscope", latin_key: "latin-microscopium", abbr: Some("Mic"), parent_key: None, season_key: "season-autumn", dec: -35.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-mouche", latin_key: "latin-musca", abbr: Some("Mus"), parent_key: None, season_key: "season-circumpolar-s", dec: -70.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-rgle", latin_key: "latin-norma", abbr: Some("Nor"), parent_key: None, season_key: "season-summer", dec: -50.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-octant", latin_key: "latin-octans", abbr: Some("Oct"), parent_key: None, season_key: "season-circumpolar-s", dec: -85.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-paon", latin_key: "latin-pavo", abbr: Some("Pav"), parent_key: None, season_key: "season-circumpolar-s", dec: -65.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-phnix", latin_key: "latin-phoenix", abbr: Some("Phe"), parent_key: None, season_key: "season-autumn", dec: -45.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-peintre", latin_key: "latin-pictor", abbr: Some("Pic"), parent_key: None, season_key: "season-winter", dec: -55.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-poisson-austral", latin_key: "latin-piscis-austrinus", abbr: Some("PsA"), parent_key: None, season_key: "season-autumn", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-poupe", latin_key: "latin-puppis", abbr: Some("Pup"), parent_key: None, season_key: "season-winter", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-boussole", latin_key: "latin-pyxis", abbr: Some("Pyx"), parent_key: None, season_key: "season-spring", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-sagittaire", latin_key: "latin-sagittarius", abbr: Some("Sgr"), parent_key: None, season_key: "season-summer", dec: -25.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-scorpion", latin_key: "latin-scorpius", abbr: Some("Sco"), parent_key: None, season_key: "season-summer", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-sculpteur", latin_key: "latin-sculptor", abbr: Some("Scl"), parent_key: None, season_key: "season-autumn", dec: -30.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-cu-de-sobieski", latin_key: "latin-scutum", abbr: Some("Sct"), parent_key: None, season_key: "season-summer", dec: -10.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-tlescope", latin_key: "latin-telescopium", abbr: Some("Tel"), parent_key: None, season_key: "season-summer", dec: -50.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-triangle-austral", latin_key: "latin-triangulum-australe", abbr: Some("TrA"), parent_key: None, season_key: "season-circumpolar-s", dec: -65.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-toucan", latin_key: "latin-tucana", abbr: Some("Tuc"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-voiles", latin_key: "latin-vela", abbr: Some("Vel"), parent_key: None, season_key: "season-spring", dec: -50.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-poisson-volant", latin_key: "latin-volans", abbr: Some("Vol"), parent_key: None, season_key: "season-circumpolar-s", dec: -70.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-rticule", latin_key: "latin-reticulum", abbr: Some("Ret"), parent_key: None, season_key: "season-circumpolar-s", dec: -60.0 },
+        Target { target_type: TargetType::Constellation, id: None, name_key: "target-burin", latin_key: "latin-caelum", abbr: Some("Cae"), parent_key: None, season_key: "season-winter", dec: -38.0 },
+        Target { target_type: TargetType::Messier, id: Some("M1"), name_key: "target-m1", latin_key: "latin-taurus", abbr: None, parent_key: Some("target-taureau"), season_key: "season-winter", dec: 22.0 },
+        Target { target_type: TargetType::Messier, id: Some("M2"), name_key: "target-m2", latin_key: "latin-aquarius", abbr: None, parent_key: Some("target-verseau"), season_key: "season-autumn", dec: -0.8 },
+        Target { target_type: TargetType::Messier, id: Some("M3"), name_key: "target-m3", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 28.4 },
+        Target { target_type: TargetType::Messier, id: Some("M4"), name_key: "target-m4", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -26.5 },
+        Target { target_type: TargetType::Messier, id: Some("M5"), name_key: "target-m5", latin_key: "latin-serpens", abbr: None, parent_key: Some("target-serpent"), season_key: "season-spring", dec: 2.1 },
+        Target { target_type: TargetType::Messier, id: Some("M6"), name_key: "target-m6", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -32.2 },
+        Target { target_type: TargetType::Messier, id: Some("M7"), name_key: "target-m7", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -34.8 },
+        Target { target_type: TargetType::Messier, id: Some("M8"), name_key: "target-m8", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -24.4 },
+        Target { target_type: TargetType::Messier, id: Some("M9"), name_key: "target-m9", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -18.5 },
+        Target { target_type: TargetType::Messier, id: Some("M10"), name_key: "target-m10", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -4.1 },
+        Target { target_type: TargetType::Messier, id: Some("M11"), name_key: "target-m11", latin_key: "latin-scutum", abbr: None, parent_key: Some("target-cu-de-sobieski"), season_key: "season-summer", dec: -6.3 },
+        Target { target_type: TargetType::Messier, id: Some("M12"), name_key: "target-m12", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -2.0 },
+        Target { target_type: TargetType::Messier, id: Some("M13"), name_key: "target-m13", latin_key: "latin-hercules", abbr: None, parent_key: Some("target-hercule"), season_key: "season-summer", dec: 36.5 },
+        Target { target_type: TargetType::Messier, id: Some("M14"), name_key: "target-m14", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -3.2 },
+        Target { target_type: TargetType::Messier, id: Some("M15"), name_key: "target-m15", latin_key: "latin-pegasus", abbr: None, parent_key: Some("target-pgase"), season_key: "season-autumn", dec: 12.2 },
+        Target { target_type: TargetType::Messier, id: Some("M16"), name_key: "target-m16", latin_key: "latin-serpens", abbr: None, parent_key: Some("target-serpent"), season_key: "season-summer", dec: -13.8 },
+        Target { target_type: TargetType::Messier, id: Some("M17"), name_key: "target-m17", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -16.2 },
+        Target { target_type: TargetType::Messier, id: Some("M18"), name_key: "target-m18", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -17.1 },
+        Target { target_type: TargetType::Messier, id: Some("M19"), name_key: "target-m19", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -26.3 },
+        Target { target_type: TargetType::Messier, id: Some("M20"), name_key: "target-m20", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -23.0 },
+        Target { target_type: TargetType::Messier, id: Some("M21"), name_key: "target-m21", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -22.5 },
+        Target { target_type: TargetType::Messier, id: Some("M22"), name_key: "target-m22", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -23.9 },
+        Target { target_type: TargetType::Messier, id: Some("M23"), name_key: "target-m23", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -19.0 },
+        Target { target_type: TargetType::Messier, id: Some("M24"), name_key: "target-m24", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -18.4 },
+        Target { target_type: TargetType::Messier, id: Some("M25"), name_key: "target-m25", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -19.1 },
+        Target { target_type: TargetType::Messier, id: Some("M26"), name_key: "target-m26", latin_key: "latin-scutum", abbr: None, parent_key: Some("target-cu-de-sobieski"), season_key: "season-summer", dec: -9.4 },
+        Target { target_type: TargetType::Messier, id: Some("M27"), name_key: "target-m27", latin_key: "latin-vulpecula", abbr: None, parent_key: Some("target-petit-renard"), season_key: "season-summer", dec: 22.7 },
+        Target { target_type: TargetType::Messier, id: Some("M28"), name_key: "target-m28", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -24.9 },
+        Target { target_type: TargetType::Messier, id: Some("M29"), name_key: "target-m29", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 38.5 },
+        Target { target_type: TargetType::Messier, id: Some("M30"), name_key: "target-m30", latin_key: "latin-capricornus", abbr: None, parent_key: Some("target-capricorne"), season_key: "season-autumn", dec: -23.2 },
+        Target { target_type: TargetType::Messier, id: Some("M31"), name_key: "target-m31", latin_key: "latin-andromeda", abbr: None, parent_key: Some("target-andromde"), season_key: "season-autumn", dec: 41.3 },
+        Target { target_type: TargetType::Messier, id: Some("M32"), name_key: "target-m32", latin_key: "latin-andromeda", abbr: None, parent_key: Some("target-andromde"), season_key: "season-autumn", dec: 40.9 },
+        Target { target_type: TargetType::Messier, id: Some("M33"), name_key: "target-m33", latin_key: "latin-triangulum", abbr: None, parent_key: Some("target-triangle"), season_key: "season-autumn", dec: 30.7 },
+        Target { target_type: TargetType::Messier, id: Some("M34"), name_key: "target-m34", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-autumn", dec: 42.8 },
+        Target { target_type: TargetType::Messier, id: Some("M35"), name_key: "target-m35", latin_key: "latin-gemini", abbr: None, parent_key: Some("target-gmeaux"), season_key: "season-winter", dec: 24.3 },
+        Target { target_type: TargetType::Messier, id: Some("M36"), name_key: "target-m36", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 34.1 },
+        Target { target_type: TargetType::Messier, id: Some("M37"), name_key: "target-m37", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 32.5 },
+        Target { target_type: TargetType::Messier, id: Some("M38"), name_key: "target-m38", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 35.8 },
+        Target { target_type: TargetType::Messier, id: Some("M39"), name_key: "target-m39", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 48.4 },
+        Target { target_type: TargetType::Messier, id: Some("M40"), name_key: "target-m40", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 58.1 },
+        Target { target_type: TargetType::Messier, id: Some("M41"), name_key: "target-m41", latin_key: "latin-canis-major", abbr: None, parent_key: Some("target-grand-chien"), season_key: "season-winter", dec: -20.7 },
+        Target { target_type: TargetType::Messier, id: Some("M42"), name_key: "target-m42", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -5.4 },
+        Target { target_type: TargetType::Messier, id: Some("M43"), name_key: "target-m43", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -5.3 },
+        Target { target_type: TargetType::Messier, id: Some("M44"), name_key: "target-m44", latin_key: "latin-cancer", abbr: None, parent_key: Some("target-cancer"), season_key: "season-spring", dec: 19.7 },
+        Target { target_type: TargetType::Messier, id: Some("M45"), name_key: "target-m45", latin_key: "latin-taurus", abbr: None, parent_key: Some("target-taureau"), season_key: "season-winter", dec: 24.1 },
+        Target { target_type: TargetType::Messier, id: Some("M46"), name_key: "target-m46", latin_key: "latin-puppis", abbr: None, parent_key: Some("target-poupe"), season_key: "season-winter", dec: -14.8 },
+        Target { target_type: TargetType::Messier, id: Some("M47"), name_key: "target-m47", latin_key: "latin-puppis", abbr: None, parent_key: Some("target-poupe"), season_key: "season-winter", dec: -14.4 },
+        Target { target_type: TargetType::Messier, id: Some("M48"), name_key: "target-m48", latin_key: "latin-hydra", abbr: None, parent_key: Some("target-hydre"), season_key: "season-winter", dec: -5.8 },
+        Target { target_type: TargetType::Messier, id: Some("M49"), name_key: "target-m49", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 8.0 },
+        Target { target_type: TargetType::Messier, id: Some("M50"), name_key: "target-m50", latin_key: "latin-monoceros", abbr: None, parent_key: Some("target-licorne"), season_key: "season-winter", dec: -8.3 },
+        Target { target_type: TargetType::Messier, id: Some("M51"), name_key: "target-m51", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 47.2 },
+        Target { target_type: TargetType::Messier, id: Some("M52"), name_key: "target-m52", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 61.6 },
+        Target { target_type: TargetType::Messier, id: Some("M53"), name_key: "target-m53", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 18.2 },
+        Target { target_type: TargetType::Messier, id: Some("M54"), name_key: "target-m54", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -30.5 },
+        Target { target_type: TargetType::Messier, id: Some("M55"), name_key: "target-m55", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -31.0 },
+        Target { target_type: TargetType::Messier, id: Some("M56"), name_key: "target-m56", latin_key: "latin-lyra", abbr: None, parent_key: Some("target-lyre"), season_key: "season-summer", dec: 30.2 },
+        Target { target_type: TargetType::Messier, id: Some("M57"), name_key: "target-m57", latin_key: "latin-lyra", abbr: None, parent_key: Some("target-lyre"), season_key: "season-summer", dec: 33.0 },
+        Target { target_type: TargetType::Messier, id: Some("M58"), name_key: "target-m58", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 11.8 },
+        Target { target_type: TargetType::Messier, id: Some("M59"), name_key: "target-m59", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 11.6 },
+        Target { target_type: TargetType::Messier, id: Some("M60"), name_key: "target-m60", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 11.5 },
+        Target { target_type: TargetType::Messier, id: Some("M61"), name_key: "target-m61", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 4.5 },
+        Target { target_type: TargetType::Messier, id: Some("M62"), name_key: "target-m62", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -30.1 },
+        Target { target_type: TargetType::Messier, id: Some("M63"), name_key: "target-m63", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 42.0 },
+        Target { target_type: TargetType::Messier, id: Some("M64"), name_key: "target-m64", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 21.7 },
+        Target { target_type: TargetType::Messier, id: Some("M65"), name_key: "target-m65", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 13.1 },
+        Target { target_type: TargetType::Messier, id: Some("M66"), name_key: "target-m66", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 13.0 },
+        Target { target_type: TargetType::Messier, id: Some("M67"), name_key: "target-m67", latin_key: "latin-cancer", abbr: None, parent_key: Some("target-cancer"), season_key: "season-spring", dec: 11.8 },
+        Target { target_type: TargetType::Messier, id: Some("M68"), name_key: "target-m68", latin_key: "latin-hydra", abbr: None, parent_key: Some("target-hydre"), season_key: "season-spring", dec: -26.7 },
+        Target { target_type: TargetType::Messier, id: Some("M69"), name_key: "target-m69", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -32.3 },
+        Target { target_type: TargetType::Messier, id: Some("M70"), name_key: "target-m70", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -32.3 },
+        Target { target_type: TargetType::Messier, id: Some("M71"), name_key: "target-m71", latin_key: "latin-sagitta", abbr: None, parent_key: Some("target-flche"), season_key: "season-summer", dec: 18.8 },
+        Target { target_type: TargetType::Messier, id: Some("M72"), name_key: "target-m72", latin_key: "latin-aquarius", abbr: None, parent_key: Some("target-verseau"), season_key: "season-autumn", dec: -12.5 },
+        Target { target_type: TargetType::Messier, id: Some("M73"), name_key: "target-m73", latin_key: "latin-aquarius", abbr: None, parent_key: Some("target-verseau"), season_key: "season-autumn", dec: -12.6 },
+        Target { target_type: TargetType::Messier, id: Some("M74"), name_key: "target-m74", latin_key: "latin-pisces", abbr: None, parent_key: Some("target-poissons"), season_key: "season-autumn", dec: 15.8 },
+        Target { target_type: TargetType::Messier, id: Some("M75"), name_key: "target-m75", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -21.9 },
+        Target { target_type: TargetType::Messier, id: Some("M76"), name_key: "target-m76", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-autumn", dec: 51.6 },
+        Target { target_type: TargetType::Messier, id: Some("M77"), name_key: "target-m77", latin_key: "latin-cetus", abbr: None, parent_key: Some("target-baleine"), season_key: "season-autumn", dec: -0.0 },
+        Target { target_type: TargetType::Messier, id: Some("M78"), name_key: "target-m78", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: 0.1 },
+        Target { target_type: TargetType::Messier, id: Some("M79"), name_key: "target-m79", latin_key: "latin-lepus", abbr: None, parent_key: Some("target-livre"), season_key: "season-winter", dec: -24.5 },
+        Target { target_type: TargetType::Messier, id: Some("M80"), name_key: "target-m80", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -23.0 },
+        Target { target_type: TargetType::Messier, id: Some("M81"), name_key: "target-m81", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 69.1 },
+        Target { target_type: TargetType::Messier, id: Some("M82"), name_key: "target-m82", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 69.7 },
+        Target { target_type: TargetType::Messier, id: Some("M83"), name_key: "target-m83", latin_key: "latin-hydra", abbr: None, parent_key: Some("target-hydre"), season_key: "season-spring", dec: -29.9 },
+        Target { target_type: TargetType::Messier, id: Some("M84"), name_key: "target-m84", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 12.9 },
+        Target { target_type: TargetType::Messier, id: Some("M85"), name_key: "target-m85", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 18.2 },
+        Target { target_type: TargetType::Messier, id: Some("M86"), name_key: "target-m86", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 12.9 },
+        Target { target_type: TargetType::Messier, id: Some("M87"), name_key: "target-m87", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 12.4 },
+        Target { target_type: TargetType::Messier, id: Some("M88"), name_key: "target-m88", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 14.4 },
+        Target { target_type: TargetType::Messier, id: Some("M89"), name_key: "target-m89", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 12.6 },
+        Target { target_type: TargetType::Messier, id: Some("M90"), name_key: "target-m90", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 13.2 },
+        Target { target_type: TargetType::Messier, id: Some("M91"), name_key: "target-m91", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 14.5 },
+        Target { target_type: TargetType::Messier, id: Some("M92"), name_key: "target-m92", latin_key: "latin-hercules", abbr: None, parent_key: Some("target-hercule"), season_key: "season-summer", dec: 43.1 },
+        Target { target_type: TargetType::Messier, id: Some("M93"), name_key: "target-m93", latin_key: "latin-puppis", abbr: None, parent_key: Some("target-poupe"), season_key: "season-winter", dec: -23.8 },
+        Target { target_type: TargetType::Messier, id: Some("M94"), name_key: "target-m94", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 41.1 },
+        Target { target_type: TargetType::Messier, id: Some("M95"), name_key: "target-m95", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 11.7 },
+        Target { target_type: TargetType::Messier, id: Some("M96"), name_key: "target-m96", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 11.8 },
+        Target { target_type: TargetType::Messier, id: Some("M97"), name_key: "target-m97", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 55.0 },
+        Target { target_type: TargetType::Messier, id: Some("M98"), name_key: "target-m98", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 14.9 },
+        Target { target_type: TargetType::Messier, id: Some("M99"), name_key: "target-m99", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 14.4 },
+        Target { target_type: TargetType::Messier, id: Some("M100"), name_key: "target-m100", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 15.8 },
+        Target { target_type: TargetType::Messier, id: Some("M101"), name_key: "target-m101", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 54.4 },
+        Target { target_type: TargetType::Messier, id: Some("M102"), name_key: "target-m102", latin_key: "latin-draco", abbr: None, parent_key: Some("target-dragon"), season_key: "season-circumpolar-n", dec: 55.8 },
+        Target { target_type: TargetType::Messier, id: Some("M103"), name_key: "target-m103", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 60.7 },
+        Target { target_type: TargetType::Messier, id: Some("M104"), name_key: "target-m104", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: -11.6 },
+        Target { target_type: TargetType::Messier, id: Some("M105"), name_key: "target-m105", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 12.6 },
+        Target { target_type: TargetType::Messier, id: Some("M106"), name_key: "target-m106", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 47.3 },
+        Target { target_type: TargetType::Messier, id: Some("M107"), name_key: "target-m107", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -13.0 },
+        Target { target_type: TargetType::Messier, id: Some("M108"), name_key: "target-m108", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 53.4 },
+        Target { target_type: TargetType::Messier, id: Some("M109"), name_key: "target-m109", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 53.4 },
+        Target { target_type: TargetType::Messier, id: Some("M110"), name_key: "target-m110", latin_key: "latin-andromeda", abbr: None, parent_key: Some("target-andromde"), season_key: "season-autumn", dec: 41.7 },
+        Target { target_type: TargetType::Galaxy, id: Some("M31"), name_key: "target-m31", latin_key: "latin-andromeda", abbr: None, parent_key: Some("target-andromde"), season_key: "season-autumn", dec: 41.26 },
+        Target { target_type: TargetType::Galaxy, id: Some("M33"), name_key: "target-m33", latin_key: "latin-triangulum", abbr: None, parent_key: Some("target-triangle"), season_key: "season-autumn", dec: 30.66 },
+        Target { target_type: TargetType::Galaxy, id: Some("M51"), name_key: "target-m51", latin_key: "latin-canes-venatici", abbr: Some("NGC 5194"), parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 47.19 },
+        Target { target_type: TargetType::Galaxy, id: Some("M81"), name_key: "target-m81", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 69.06 },
+        Target { target_type: TargetType::Galaxy, id: Some("M82"), name_key: "target-m82", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 69.68 },
+        Target { target_type: TargetType::Galaxy, id: Some("M101"), name_key: "target-m101", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 54.35 },
+        Target { target_type: TargetType::Galaxy, id: Some("M63"), name_key: "target-m63", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 42.03 },
+        Target { target_type: TargetType::Galaxy, id: Some("M64"), name_key: "target-m64", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 21.68 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 4565"), name_key: "target-ngc-4565", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 25.98 },
+        Target { target_type: TargetType::Galaxy, id: Some("M104"), name_key: "target-m104", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: -11.62 },
+        Target { target_type: TargetType::Galaxy, id: Some("LMC"), name_key: "target-lmc", latin_key: "latin-dorado", abbr: None, parent_key: Some("target-dorade"), season_key: "season-circumpolar-s", dec: -69.75 },
+        Target { target_type: TargetType::Galaxy, id: Some("SMC"), name_key: "target-smc", latin_key: "latin-tucana", abbr: None, parent_key: Some("target-toucan"), season_key: "season-circumpolar-s", dec: -72.80 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 5128"), name_key: "target-ngc-5128", latin_key: "latin-centaurus", abbr: None, parent_key: Some("target-centaure"), season_key: "season-spring", dec: -43.01 },
+        Target { target_type: TargetType::Galaxy, id: Some("M83"), name_key: "target-m83", latin_key: "latin-hydra", abbr: None, parent_key: Some("target-hydre"), season_key: "season-spring", dec: -29.86 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 253"), name_key: "target-ngc-253", latin_key: "latin-sculptor", abbr: None, parent_key: Some("target-sculpteur"), season_key: "season-autumn", dec: -25.29 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 300"), name_key: "target-ngc-300", latin_key: "latin-sculptor", abbr: None, parent_key: Some("target-sculpteur"), season_key: "season-autumn", dec: -37.68 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 4945"), name_key: "target-ngc-4945", latin_key: "latin-centaurus", abbr: None, parent_key: Some("target-centaure"), season_key: "season-spring", dec: -49.47 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 1316"), name_key: "target-ngc-1316", latin_key: "latin-fornax", abbr: None, parent_key: Some("target-fourneau"), season_key: "season-autumn", dec: -37.20 },
+        Target { target_type: TargetType::Galaxy, id: Some("M65"), name_key: "target-m65", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 13.09 },
+        Target { target_type: TargetType::Galaxy, id: Some("M66"), name_key: "target-m66", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 12.99 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 3628"), name_key: "target-ngc-3628", latin_key: "latin-leo", abbr: None, parent_key: Some("target-lion"), season_key: "season-spring", dec: 13.59 },
+        Target { target_type: TargetType::Galaxy, id: Some("M87"), name_key: "target-m87", latin_key: "latin-virgo", abbr: None, parent_key: Some("target-vierge"), season_key: "season-spring", dec: 12.39 },
+        Target { target_type: TargetType::Galaxy, id: Some("NGC 4038"), name_key: "target-ngc-4038", latin_key: "latin-corvus", abbr: None, parent_key: Some("target-corbeau"), season_key: "season-spring", dec: -18.87 },
+        Target { target_type: TargetType::Nebula, id: Some("M42"), name_key: "target-m42", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -5.39 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 434"), name_key: "target-ic-434", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -2.45 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 2024"), name_key: "target-ngc-2024", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -1.86 },
+        Target { target_type: TargetType::Nebula, id: Some("Sh2-276"), name_key: "target-sh2-276", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: -1.00 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 2118"), name_key: "target-ic-2118", latin_key: "latin-eridanus", abbr: None, parent_key: Some("target-ridan"), season_key: "season-winter", dec: -7.25 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 2237"), name_key: "target-ngc-2237", latin_key: "latin-monoceros", abbr: None, parent_key: Some("target-licorne"), season_key: "season-winter", dec: 4.97 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 2264"), name_key: "target-ngc-2264", latin_key: "latin-monoceros", abbr: None, parent_key: Some("target-licorne"), season_key: "season-winter", dec: 9.89 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 405"), name_key: "target-ic-405", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 34.35 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 443"), name_key: "target-ic-443", latin_key: "latin-gemini", abbr: None, parent_key: Some("target-gmeaux"), season_key: "season-winter", dec: 22.47 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 2174"), name_key: "target-ngc-2174", latin_key: "latin-orion", abbr: None, parent_key: Some("target-orion"), season_key: "season-winter", dec: 20.50 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 1499"), name_key: "target-ngc-1499", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-winter", dec: 36.42 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 3372"), name_key: "target-ngc-3372", latin_key: "latin-carina", abbr: None, parent_key: Some("target-carne"), season_key: "season-spring", dec: -59.87 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 2944"), name_key: "target-ic-2944", latin_key: "latin-centaurus", abbr: None, parent_key: Some("target-centaure"), season_key: "season-spring", dec: -63.02 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 3576"), name_key: "target-ngc-3576", latin_key: "latin-carina", abbr: None, parent_key: Some("target-carne"), season_key: "season-spring", dec: -61.30 },
+        Target { target_type: TargetType::Nebula, id: Some("M97"), name_key: "target-m97", latin_key: "latin-ursa-major", abbr: None, parent_key: Some("target-grande-ourse"), season_key: "season-spring", dec: 55.02 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 3242"), name_key: "target-ngc-3242", latin_key: "latin-hydra", abbr: None, parent_key: Some("target-hydre"), season_key: "season-spring", dec: -18.63 },
+        Target { target_type: TargetType::Nebula, id: Some("M16"), name_key: "target-m16", latin_key: "latin-serpens", abbr: None, parent_key: Some("target-serpent"), season_key: "season-spring", dec: -13.81 },
+        Target { target_type: TargetType::Nebula, id: Some("M8"), name_key: "target-m8", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -24.38 },
+        Target { target_type: TargetType::Nebula, id: Some("M20"), name_key: "target-m20", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -23.03 },
+        Target { target_type: TargetType::Nebula, id: Some("M16"), name_key: "target-m16", latin_key: "latin-serpens", abbr: None, parent_key: Some("target-serpent"), season_key: "season-summer", dec: -13.80 },
+        Target { target_type: TargetType::Nebula, id: Some("M17"), name_key: "target-m17", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -16.18 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 4604"), name_key: "target-ic-4604", latin_key: "latin-ophiuchus", abbr: None, parent_key: Some("target-ophiuchus"), season_key: "season-summer", dec: -24.35 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 6357"), name_key: "target-ngc-6357", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -34.20 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 6334"), name_key: "target-ngc-6334", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -35.95 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 7000"), name_key: "target-ngc-7000", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 44.33 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 5070"), name_key: "target-ic-5070", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 44.13 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 6960"), name_key: "target-ngc-6960", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 30.70 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 6992"), name_key: "target-ngc-6992", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 31.70 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 6888"), name_key: "target-ngc-6888", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 38.35 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 1318"), name_key: "target-ic-1318", latin_key: "latin-cygnus", abbr: None, parent_key: Some("target-cygne"), season_key: "season-summer", dec: 40.25 },
+        Target { target_type: TargetType::Nebula, id: Some("LDN 673"), name_key: "target-ldn-673", latin_key: "latin-aquila", abbr: None, parent_key: Some("target-aigle"), season_key: "season-summer", dec: 1.00 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 1805"), name_key: "target-ic-1805", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 61.45 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 1848"), name_key: "target-ic-1848", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 60.40 },
+        Target { target_type: TargetType::Nebula, id: Some("IC 1396"), name_key: "target-ic-1396", latin_key: "latin-cepheus", abbr: None, parent_key: Some("target-cphe"), season_key: "season-autumn", dec: 57.50 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 281"), name_key: "target-ngc-281", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 56.62 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 7635"), name_key: "target-ngc-7635", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 61.20 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 7023"), name_key: "target-ngc-7023", latin_key: "latin-cepheus", abbr: None, parent_key: Some("target-cphe"), season_key: "season-autumn", dec: 68.16 },
+        Target { target_type: TargetType::Nebula, id: Some("NGC 7293"), name_key: "target-ngc-7293", latin_key: "latin-aquarius", abbr: None, parent_key: Some("target-verseau"), season_key: "season-autumn", dec: -20.80 },
+        Target { target_type: TargetType::Cluster, id: Some("M45"), name_key: "target-m45", latin_key: "latin-taurus", abbr: None, parent_key: Some("target-taureau"), season_key: "season-winter", dec: 24.12 },
+        Target { target_type: TargetType::Cluster, id: Some("M44"), name_key: "target-m44", latin_key: "latin-cancer", abbr: None, parent_key: Some("target-cancer"), season_key: "season-spring", dec: 19.67 },
+        Target { target_type: TargetType::Cluster, id: Some("M35"), name_key: "target-m35", latin_key: "latin-gemini", abbr: None, parent_key: Some("target-gmeaux"), season_key: "season-winter", dec: 24.33 },
+        Target { target_type: TargetType::Cluster, id: Some("M36"), name_key: "target-m36", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 34.13 },
+        Target { target_type: TargetType::Cluster, id: Some("M37"), name_key: "target-m37", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 32.55 },
+        Target { target_type: TargetType::Cluster, id: Some("M38"), name_key: "target-m38", latin_key: "latin-auriga", abbr: None, parent_key: Some("target-cocher"), season_key: "season-winter", dec: 35.83 },
+        Target { target_type: TargetType::Cluster, id: Some("M41"), name_key: "target-m41", latin_key: "latin-canis-major", abbr: None, parent_key: Some("target-grand-chien"), season_key: "season-winter", dec: -20.73 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 869"), name_key: "target-ngc-869", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-autumn", dec: 57.13 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 884"), name_key: "target-ngc-884", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-autumn", dec: 57.15 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 2244"), name_key: "target-ngc-2244", latin_key: "latin-monoceros", abbr: None, parent_key: Some("target-licorne"), season_key: "season-winter", dec: 4.87 },
+        Target { target_type: TargetType::Cluster, id: Some("M3"), name_key: "target-m3", latin_key: "latin-canes-venatici", abbr: None, parent_key: Some("target-chiens-de-chasse"), season_key: "season-spring", dec: 28.38 },
+        Target { target_type: TargetType::Cluster, id: Some("M5"), name_key: "target-m5", latin_key: "latin-serpens", abbr: None, parent_key: Some("target-serpent"), season_key: "season-spring", dec: 2.08 },
+        Target { target_type: TargetType::Cluster, id: Some("M13"), name_key: "target-m13", latin_key: "latin-hercules", abbr: None, parent_key: Some("target-hercule"), season_key: "season-summer", dec: 36.46 },
+        Target { target_type: TargetType::Cluster, id: Some("M53"), name_key: "target-m53", latin_key: "latin-coma-berenices", abbr: None, parent_key: Some("target-chevelure-de-brnice"), season_key: "season-spring", dec: 18.17 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 5139"), name_key: "target-ngc-5139", latin_key: "latin-centaurus", abbr: None, parent_key: Some("target-centaure"), season_key: "season-spring", dec: -47.48 },
+        Target { target_type: TargetType::Cluster, id: Some("M11"), name_key: "target-m11", latin_key: "latin-scutum", abbr: None, parent_key: Some("target-cu-de-sobieski"), season_key: "season-summer", dec: -6.27 },
+        Target { target_type: TargetType::Cluster, id: Some("M22"), name_key: "target-m22", latin_key: "latin-sagittarius", abbr: None, parent_key: Some("target-sagittaire"), season_key: "season-summer", dec: -23.90 },
+        Target { target_type: TargetType::Cluster, id: Some("M6"), name_key: "target-m6", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -32.22 },
+        Target { target_type: TargetType::Cluster, id: Some("M7"), name_key: "target-m7", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -34.82 },
+        Target { target_type: TargetType::Cluster, id: Some("M92"), name_key: "target-m92", latin_key: "latin-hercules", abbr: None, parent_key: Some("target-hercule"), season_key: "season-summer", dec: 43.13 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 6231"), name_key: "target-ngc-6231", latin_key: "latin-scorpius", abbr: None, parent_key: Some("target-scorpion"), season_key: "season-summer", dec: -41.80 },
+        Target { target_type: TargetType::Cluster, id: Some("M15"), name_key: "target-m15", latin_key: "latin-pegasus", abbr: None, parent_key: Some("target-pgase"), season_key: "season-autumn", dec: 12.17 },
+        Target { target_type: TargetType::Cluster, id: Some("M2"), name_key: "target-m2", latin_key: "latin-aquarius", abbr: None, parent_key: Some("target-verseau"), season_key: "season-autumn", dec: -0.82 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 104"), name_key: "target-ngc-104", latin_key: "latin-tucana", abbr: None, parent_key: Some("target-toucan"), season_key: "season-autumn", dec: -72.08 },
+        Target { target_type: TargetType::Cluster, id: Some("M34"), name_key: "target-m34", latin_key: "latin-perseus", abbr: None, parent_key: Some("target-perse"), season_key: "season-autumn", dec: 42.78 },
+        Target { target_type: TargetType::Cluster, id: Some("NGC 457"), name_key: "target-ngc-457", latin_key: "latin-cassiopeia", abbr: None, parent_key: Some("target-cassiope"), season_key: "season-autumn", dec: 58.33 },
     ]
 });
 
@@ -440,7 +411,7 @@ fn get_color(t: f64, levels: &[f64]) -> HSLColor {
     let max_idx = levels.len();
     let ratio = (idx as f64 / max_idx as f64).clamp(0.0, 1.0);
     
-    // Simulation d'une palette plus riche (du bleu/noir au jaune/blanc)
+    // Palette: du bleu (froid/sombre) au jaune/blanc (chaud/brillant)
     let h = 0.7 - (ratio * 0.75); // De 0.7 (bleu) à -0.05 (rouge/orangé)
     let s = 0.9;
     let l = 0.1 + (ratio * 0.8); // De 0.1 (sombre) à 0.9 (lumineux)
@@ -474,10 +445,28 @@ struct NpfApp {
     offset_y: f64,
     first_frame: bool,
     show_settings: bool,
+    search_query: String,
+    bundles: HashMap<String, FluentBundle<FluentResource>>,
 }
 
 impl Default for NpfApp {
     fn default() -> Self {
+        let mut bundles = HashMap::new();
+        
+        // Chargement du français
+        let res_fr = FluentResource::try_new(include_str!("../i18n/fr.ftl").to_owned()).expect("Failed to parse fr.ftl");
+        let lang_fr: LanguageIdentifier = "fr".parse().expect("Parsing failed");
+        let mut bundle_fr = FluentBundle::new(vec![lang_fr]);
+        bundle_fr.add_resource(res_fr).expect("Failed to add resource");
+        bundles.insert("fr".to_string(), bundle_fr);
+
+        // Chargement de l'anglais
+        let res_en = FluentResource::try_new(include_str!("../i18n/en.ftl").to_owned()).expect("Failed to parse en.ftl");
+        let lang_en: LanguageIdentifier = "en".parse().expect("Parsing failed");
+        let mut bundle_en = FluentBundle::new(vec![lang_en]);
+        bundle_en.add_resource(res_en).expect("Failed to add resource");
+        bundles.insert("en".to_string(), bundle_en);
+
         Self {
             settings: AppSettings::default(),
             selected_target: None,
@@ -490,27 +479,77 @@ impl Default for NpfApp {
             offset_y: 0.0,
             first_frame: true,
             show_settings: false,
+            search_query: String::new(),
+            bundles,
         }
     }
 }
 
 impl NpfApp {
     fn is_target_visible(&self, target: &Target) -> bool {
-        // Filtre Latitude : Un objet ne doit être affiché que si sa déclinaison est supérieure à la limite de l'horizon.
-        // On utilise la formule : target.dec > (settings.latitude - 80.0)
-        // Cela permet de ne garder que les objets qui montent à au moins 10° au-dessus de l'horizon.
         let latitude_visible = target.dec > (self.settings.latitude - 80.0);
 
-        // Filtre Saison :
-        // - Si selected_season est égal à "Toutes", on affiche tout (sous réserve du filtre latitude).
-        // - Sinon, on affiche l'objet si target.saison correspond à selected_season OU si target.saison contient le mot "Circumpolaire".
         let season_visible = if self.settings.selected_season == "Toutes" {
             true
         } else {
-            target.saison == self.settings.selected_season || target.saison.contains("Circumpolaire")
+            let target_season = self.tr(target.season_key);
+            let selected_season = self.get_season_tr(&self.settings.selected_season);
+            target_season == selected_season || target.season_key.contains("circumpolaire")
         };
 
         latitude_visible && season_visible
+    }
+
+    fn matches_search(&self, target: &Target) -> bool {
+        if self.search_query.is_empty() {
+            return true;
+        }
+        let query = self.search_query.to_lowercase();
+        let name = self.tr(target.name_key).to_lowercase();
+        let latin = self.tr(target.latin_key).to_lowercase();
+        
+        name.contains(&query)
+            || latin.contains(&query)
+            || target.abbr.map(|a| a.to_lowercase().contains(&query)).unwrap_or(false)
+            || target.id.map(|i| i.to_lowercase().contains(&query)).unwrap_or(false)
+    }
+
+    fn tr(&self, id: &str) -> String {
+        let bundle = self.bundles.get(&self.settings.language).or_else(|| self.bundles.get("en")).unwrap();
+        let pattern = bundle.get_message(id).and_then(|m| m.value()).expect("Translation missing");
+        let mut errors = vec![];
+        bundle.format_pattern(pattern, None, &mut errors).to_string()
+    }
+
+    fn tr_args(&self, id: &str, args: &FluentArgs) -> String {
+        let bundle = self.bundles.get(&self.settings.language).or_else(|| self.bundles.get("en")).unwrap();
+        let pattern = bundle.get_message(id).and_then(|m| m.value()).expect("Translation missing");
+        let mut errors = vec![];
+        bundle.format_pattern(pattern, Some(args), &mut errors).to_string()
+    }
+
+    fn get_season_tr(&self, season: &str) -> String {
+        match season {
+            "Toutes" => self.tr("season-all"),
+            "Printemps" => self.tr("season-spring"),
+            "Été" => self.tr("season-summer"),
+            "Automne" => self.tr("season-autumn"),
+            "Hiver" => self.tr("season-winter"),
+            "Circumpolaire N" => self.tr("season-circumpolar-n"),
+            "Circumpolaire S" => self.tr("season-circumpolar-s"),
+            _ => season.to_string(),
+        }
+    }
+
+    #[allow(unused)]
+    fn get_type_tr(&self, t: &TargetType) -> String {
+        match t {
+            TargetType::Constellation => self.tr("type-constellation"),
+            TargetType::Messier => self.tr("type-messier"),
+            TargetType::Nebula => self.tr("type-nebula"),
+            TargetType::Galaxy => self.tr("type-galaxy"),
+            TargetType::Cluster => self.tr("type-cluster"),
+        }
     }
 
     fn update_chart(&mut self, ctx: &egui::Context, steps: i32) {
@@ -526,7 +565,11 @@ impl NpfApp {
             let root = root_base.margin(0, 0, 0, 0);
             
             let target_dec = self.selected_target.as_ref().map(|t| t.dec.abs()).unwrap_or(0.0);
-            let target_name = self.selected_target.as_ref().map(|t| t.id.unwrap_or(t.nom)).unwrap_or("Équateur");
+            let equator_tr = self.tr("chart-equator-label");
+            let target_name_string = self.selected_target.as_ref()
+                .map(|t| t.id.map(|id| id.to_string()).unwrap_or_else(|| self.tr(t.name_key)))
+                .unwrap_or(equator_tr);
+            let target_name = &target_name_string;
 
             let lens = &self.settings.lenses[self.settings.selected_lens_idx];
             let sensor = &self.settings.sensors[self.settings.selected_sensor_idx];
@@ -589,7 +632,7 @@ impl NpfApp {
             
             // X: Focale - Placée au milieu de l'axe X, décalée en Y/Z pour être hors de la boîte
             chart.draw_series(std::iter::once(Text::new(
-                "Focale (mm)",
+                self.tr("chart-focal-label"),
                 ((f_min + f_max) / 2.0, -z_max * 0.1, -10.0),
                 label_style.clone().pos(plotters::style::text_anchor::Pos {
                     h_pos: plotters::style::text_anchor::HPos::Center,
@@ -599,7 +642,7 @@ impl NpfApp {
 
             // Y: Temps de pose - Placé au milieu de l'axe Y, décalé en X/Z
             chart.draw_series(std::iter::once(Text::new(
-                "Temps de pose (s)",
+                self.tr("chart-exposure-label"),
                 (f_min - (f_max-f_min)*0.1, z_max / 2.0, -10.0),
                 label_style.clone().pos(plotters::style::text_anchor::Pos {
                     h_pos: plotters::style::text_anchor::HPos::Center,
@@ -609,7 +652,7 @@ impl NpfApp {
 
             // Z: Déclinaison - Placé au milieu de l'axe Z, décalé en X/Y sur l'axe en face
             chart.draw_series(std::iter::once(Text::new(
-                "Déclinaison (°)",
+                self.tr("chart-declination-label"),
                 (f_max + (f_max-f_min)*0.1, -z_max * 0.1, 90.0 / 2.0),
                 label_style.clone().pos(plotters::style::text_anchor::Pos {
                     h_pos: plotters::style::text_anchor::HPos::Center,
@@ -786,7 +829,7 @@ impl NpfApp {
             // Légende manuelle en bas à droite pour la ligne cyan
             let leg_x_end = width as i32 - 40;
             let leg_y_bottom = height as i32 - 40;
-            let leg_text = format!("Position {}", target_name);
+            let leg_text = format!("{} : {}", self.tr("lens-label"), target_name);
             let leg_style = ("sans-serif", 20).into_font().color(&BLACK);
             let (text_w, _text_h) = root_base.estimate_text_size(&leg_text, &leg_style).unwrap_or((150, 20));
             
@@ -831,18 +874,24 @@ impl eframe::App for NpfApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.show_settings {
             let max_height = ctx.screen_rect().height() * 0.75;
-            egui::Window::new("Paramètres - Objectifs et Capteurs")
+            egui::Window::new(self.tr("settings-window-title"))
                 .max_height(max_height)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.heading("Capteurs");
+                        ui.heading(self.tr("sensors-heading"));
                         let mut to_remove_sensor = None;
                         let num_sensors = self.settings.sensors.len();
+                        let pixel_prefix = self.tr("pixel-prefix");
+                        let pixel_suffix = self.tr("pixel-suffix");
                         for i in 0..num_sensors {
                             let sensor = &mut self.settings.sensors[i];
                             ui.horizontal(|ui| {
                                 ui.text_edit_singleline(&mut sensor.name);
-                                ui.add(egui::DragValue::new(&mut sensor.pixel_size).speed(0.01).clamp_range(0.1..=100.0).prefix("Pixel: ").suffix(" µm"));
+                                ui.add(egui::DragValue::new(&mut sensor.pixel_size)
+                                    .speed(0.01)
+                                    .clamp_range(0.1..=100.0)
+                                    .prefix(&pixel_prefix)
+                                    .suffix(&pixel_suffix));
                                 if ui.button("🗑").clicked() && num_sensors > 1 {
                                     to_remove_sensor = Some(i);
                                 }
@@ -855,15 +904,21 @@ impl eframe::App for NpfApp {
                             }
                             self.needs_update = true;
                         }
-                        if ui.button("+ Ajouter un capteur").clicked() {
+                        if ui.button(self.tr("add-sensor-button")).clicked() {
                             self.settings.sensors.push(SensorConfig::default());
                         }
 
                         ui.separator();
 
-                        ui.heading("Objectifs");
+                        ui.heading(self.tr("lenses-heading"));
                         let mut to_remove_lens = None;
                         let num_lenses = self.settings.lenses.len();
+                        let fmin_prefix = self.tr("fmin-prefix");
+                        let fmin_suffix = self.tr("fmin-suffix");
+                        let fmax_prefix = self.tr("fmax-prefix");
+                        let fmax_suffix = self.tr("fmax-suffix");
+                        let nmin_prefix = self.tr("nmin-prefix");
+                        let nmax_prefix = self.tr("nmax-prefix");
                         for i in 0..num_lenses {
                             let lens = &mut self.settings.lenses[i];
                             ui.group(|ui| {
@@ -874,12 +929,26 @@ impl eframe::App for NpfApp {
                                     }
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.add(egui::DragValue::new(&mut lens.f_min).speed(0.1).clamp_range(0.1..=10000.0).prefix("Fmin: ").suffix(" mm"));
-                                    ui.add(egui::DragValue::new(&mut lens.f_max).speed(0.1).clamp_range(0.1..=10000.0).prefix("Fmax: ").suffix(" mm"));
+                                    ui.add(egui::DragValue::new(&mut lens.f_min)
+                                        .speed(0.1)
+                                        .clamp_range(0.1..=10000.0)
+                                        .prefix(&fmin_prefix)
+                                        .suffix(&fmin_suffix));
+                                    ui.add(egui::DragValue::new(&mut lens.f_max)
+                                        .speed(0.1)
+                                        .clamp_range(0.1..=10000.0)
+                                        .prefix(&fmax_prefix)
+                                        .suffix(&fmax_suffix));
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.add(egui::DragValue::new(&mut lens.n_min).speed(0.1).clamp_range(0.1..=64.0).prefix("f/min: "));
-                                    ui.add(egui::DragValue::new(&mut lens.n_max).speed(0.1).clamp_range(0.1..=64.0).prefix("f/max: "));
+                                    ui.add(egui::DragValue::new(&mut lens.n_min)
+                                        .speed(0.1)
+                                        .clamp_range(0.1..=64.0)
+                                        .prefix(&nmin_prefix));
+                                    ui.add(egui::DragValue::new(&mut lens.n_max)
+                                        .speed(0.1)
+                                        .clamp_range(0.1..=64.0)
+                                        .prefix(&nmax_prefix));
                                 });
                             });
                         }
@@ -890,9 +959,9 @@ impl eframe::App for NpfApp {
                             }
                             self.needs_update = true;
                         }
-                        if ui.button("+ Ajouter un objectif").clicked() {
+                        if ui.button(self.tr("add-lens-button")).clicked() {
                             self.settings.lenses.push(LensConfig {
-                                name: "Nouvel Objectif".to_string(),
+                                name: self.tr("new-lens-name"),
                                 f_min: 50.0,
                                 f_max: 50.0,
                                 n_min: 1.8,
@@ -900,8 +969,8 @@ impl eframe::App for NpfApp {
                             });
                         }
 
-                        ui.add_space(10.0);
-                        if ui.button("Fermer et appliquer").clicked() {
+                        ui.separator();
+                        if ui.button(self.tr("close-apply-button")).clicked() {
                             self.show_settings = false;
                             self.needs_update = true;
                         }
@@ -923,7 +992,7 @@ impl eframe::App for NpfApp {
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("Objectif", |ui| {
+                ui.menu_button(self.tr("lens-label"), |ui| {
                     for (i, lens) in self.settings.lenses.iter().enumerate() {
                         if ui.selectable_label(self.settings.selected_lens_idx == i, &lens.name).clicked() {
                             self.settings.selected_lens_idx = i;
@@ -933,7 +1002,7 @@ impl eframe::App for NpfApp {
                     }
                 });
 
-                ui.menu_button("Capteur", |ui| {
+                ui.menu_button(self.tr("sensor-label"), |ui| {
                     for (i, sensor) in self.settings.sensors.iter().enumerate() {
                         if ui.selectable_label(self.settings.selected_sensor_idx == i, &sensor.name).clicked() {
                             self.settings.selected_sensor_idx = i;
@@ -943,29 +1012,51 @@ impl eframe::App for NpfApp {
                     }
                 });
 
-                ui.menu_button("Paramètres", |ui| {
-                    if ui.button("Gérer les objectifs et capteurs").clicked() {
+                ui.menu_button(self.tr("settings-label"), |ui| {
+                    if ui.button(self.tr("manage-lenses-sensors")).clicked() {
                         self.show_settings = true;
                         ui.close_menu();
                     }
+                    ui.separator();
+                    ui.label("Langue / Language");
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(self.settings.language == "fr", "Français").clicked() {
+                            self.settings.language = "fr".to_string();
+                            self.needs_update = true;
+                            ui.close_menu();
+                        }
+                        if ui.selectable_label(self.settings.language == "en", "English").clicked() {
+                            self.settings.language = "en".to_string();
+                            self.needs_update = true;
+                            ui.close_menu();
+                        }
+                    });
                 });
 
                 ui.separator();
 
-                ui.label("Saison:");
+                ui.label(self.tr("season-label"));
                 egui::ComboBox::from_id_source("season_filter")
-                    .selected_text(&self.settings.selected_season)
+                    .selected_text(self.get_season_tr(&self.settings.selected_season))
                     .show_ui(ui, |ui| {
-                        let seasons = ["Toutes", "Printemps", "Été", "Automne", "Hiver", "Circumpolaire N", "Circumpolaire S"];
-                        for season in seasons {
-                            if ui.selectable_label(self.settings.selected_season == season, season).clicked() {
-                                self.settings.selected_season = season.to_string();
+                        let seasons = [
+                            ("Toutes", "season-all"), 
+                            ("Printemps", "season-spring"), 
+                            ("Été", "season-summer"), 
+                            ("Automne", "season-autumn"), 
+                            ("Hiver", "season-winter"), 
+                            ("Circumpolaire N", "season-circumpolar-n"), 
+                            ("Circumpolaire S", "season-circumpolar-s")
+                        ];
+                        for (key, tr_id) in seasons {
+                            if ui.selectable_label(self.settings.selected_season == key, self.tr(tr_id)).clicked() {
+                                self.settings.selected_season = key.to_string();
                                 self.needs_update = true;
                             }
                         }
                     });
 
-                ui.label("Latitude:");
+                ui.label(self.tr("latitude-label"));
                 if ui.add(egui::DragValue::new(&mut self.settings.latitude)
                     .speed(0.1)
                     .clamp_range(-90.0..=90.0)
@@ -973,16 +1064,54 @@ impl eframe::App for NpfApp {
                     self.needs_update = true;
                 }
 
-                ui.menu_button("Type d'objet", |ui| {
-                    ui.menu_button("Constellation", |ui| {
+                ui.separator();
+                ui.label(self.tr("search-placeholder"));
+                if ui.text_edit_singleline(&mut self.search_query).changed() {
+                    // La recherche change, on pourrait éventuellement forcer un refresh si besoin
+                }
+                if !self.search_query.is_empty() {
+                    if ui.button("×").clicked() {
+                        self.search_query.clear();
+                    }
+
+                    // Affichage direct des résultats de recherche s'il y en a peu
+                    let search_results: Vec<&Target> = TARGETS.iter()
+                        .filter(|t| self.is_target_visible(t))
+                        .filter(|t| self.matches_search(t))
+                        .take(10)
+                        .collect();
+                    
+                    if !search_results.is_empty() {
+                        ui.separator();
+                        ui.menu_button(self.tr("search-results-label"), |ui| {
+                            for target in search_results {
+                                let name = self.tr(target.name_key);
+                                let label = if let Some(id) = target.id {
+                                    format!("{} - {}", id, name)
+                                } else {
+                                    name
+                                };
+                                if ui.button(label).clicked() {
+                                    self.selected_target = Some(target.clone());
+                                    self.needs_update = true;
+                                    ui.close_menu();
+                                }
+                            }
+                        });
+                    }
+                }
+
+                ui.menu_button(self.tr("object-type-label"), |ui| {
+                    ui.menu_button(self.tr("type-constellation"), |ui| {
                         let mut constellations: Vec<&Target> = TARGETS.iter()
                             .filter(|t| t.target_type == TargetType::Constellation)
                             .filter(|t| self.is_target_visible(t))
+                            .filter(|t| self.matches_search(t))
                             .collect();
-                        constellations.sort_by(|a, b| a.nom.cmp(b.nom));
+                        constellations.sort_by(|a, b| self.tr(a.name_key).cmp(&self.tr(b.name_key)));
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for target in constellations {
-                                if ui.button(target.nom).clicked() {
+                                if ui.button(self.tr(target.name_key)).clicked() {
                                     self.selected_target = Some(target.clone());
                                     self.needs_update = true;
                                     ui.close_menu();
@@ -990,10 +1119,11 @@ impl eframe::App for NpfApp {
                             }
                         });
                     });
-                    ui.menu_button("Messier", |ui| {
+                    ui.menu_button(self.tr("type-messier"), |ui| {
                         let mut messiers: Vec<&Target> = TARGETS.iter()
                             .filter(|t| t.target_type == TargetType::Messier)
                             .filter(|t| self.is_target_visible(t))
+                            .filter(|t| self.matches_search(t))
                             .collect();
                         messiers.sort_by(|a, b| {
                             let a_num: i32 = a.id.unwrap_or("").strip_prefix('M').and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -1002,7 +1132,7 @@ impl eframe::App for NpfApp {
                         });
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for target in messiers {
-                                let label = format!("{} - {}", target.id.unwrap_or(""), target.nom);
+                                let label = format!("{} - {}", target.id.unwrap_or(""), self.tr(target.name_key));
                                 if ui.button(label).clicked() {
                                     self.selected_target = Some(target.clone());
                                     self.needs_update = true;
@@ -1011,15 +1141,16 @@ impl eframe::App for NpfApp {
                             }
                         });
                     });
-                    ui.menu_button("Nébuleuse", |ui| {
+                    ui.menu_button(self.tr("type-nebula"), |ui| {
                         let mut nebulae: Vec<&Target> = TARGETS.iter()
                             .filter(|t| t.target_type == TargetType::Nebula)
                             .filter(|t| self.is_target_visible(t))
+                            .filter(|t| self.matches_search(t))
                             .collect();
-                        nebulae.sort_by(|a, b| a.nom.cmp(b.nom));
+                        nebulae.sort_by(|a, b| self.tr(a.name_key).cmp(&self.tr(b.name_key)));
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for target in nebulae {
-                                if ui.button(target.nom).clicked() {
+                                if ui.button(self.tr(target.name_key)).clicked() {
                                     self.selected_target = Some(target.clone());
                                     self.needs_update = true;
                                     ui.close_menu();
@@ -1027,15 +1158,16 @@ impl eframe::App for NpfApp {
                             }
                         });
                     });
-                    ui.menu_button("Galaxie", |ui| {
+                    ui.menu_button(self.tr("type-galaxy"), |ui| {
                         let mut galaxies: Vec<&Target> = TARGETS.iter()
                             .filter(|t| t.target_type == TargetType::Galaxy)
                             .filter(|t| self.is_target_visible(t))
+                            .filter(|t| self.matches_search(t))
                             .collect();
-                        galaxies.sort_by(|a, b| a.nom.cmp(b.nom));
+                        galaxies.sort_by(|a, b| self.tr(a.name_key).cmp(&self.tr(b.name_key)));
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for target in galaxies {
-                                if ui.button(target.nom).clicked() {
+                                if ui.button(self.tr(target.name_key)).clicked() {
                                     self.selected_target = Some(target.clone());
                                     self.needs_update = true;
                                     ui.close_menu();
@@ -1043,15 +1175,16 @@ impl eframe::App for NpfApp {
                             }
                         });
                     });
-                    ui.menu_button("Amas", |ui| {
+                    ui.menu_button(self.tr("type-cluster"), |ui| {
                         let mut clusters: Vec<&Target> = TARGETS.iter()
                             .filter(|t| t.target_type == TargetType::Cluster)
                             .filter(|t| self.is_target_visible(t))
+                            .filter(|t| self.matches_search(t))
                             .collect();
-                        clusters.sort_by(|a, b| a.nom.cmp(b.nom));
+                        clusters.sort_by(|a, b| self.tr(a.name_key).cmp(&self.tr(b.name_key)));
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             for target in clusters {
-                                if ui.button(target.nom).clicked() {
+                                if ui.button(self.tr(target.name_key)).clicked() {
                                     self.selected_target = Some(target.clone());
                                     self.needs_update = true;
                                     ui.close_menu();
@@ -1066,7 +1199,7 @@ impl eframe::App for NpfApp {
         egui::SidePanel::right("info_panel").show(ctx, |ui| {
             ui.set_min_width(200.0);
             ui.vertical_centered(|ui| {
-                ui.heading("Informations Cible");
+                ui.heading(self.tr("target-info-title"));
             });
             ui.separator();
             ui.add_space(10.0);
@@ -1074,11 +1207,11 @@ impl eframe::App for NpfApp {
             if let Some(target) = &self.selected_target {
                 let is_visible = self.is_target_visible(target);
                 if !is_visible {
-                    let msg = if target.saison != self.settings.selected_season && self.settings.selected_season != "Toutes" 
-                        && !target.saison.starts_with("Circumpolaire") {
-                        "⚠ Cible hors saison"
+                    let msg = if target.season_key != self.settings.selected_season && self.settings.selected_season != "Toutes" 
+                        && !target.season_key.contains("circumpolaire") {
+                        self.tr("target-out-of-season")
                     } else {
-                        "⚠ Cible non visible depuis cette latitude"
+                        self.tr("target-not-visible")
                     };
                     ui.colored_label(egui::Color32::RED, msg);
                     ui.add_space(5.0);
@@ -1088,48 +1221,49 @@ impl eframe::App for NpfApp {
                     
                     if let Some(id) = target.id {
                         ui.horizontal(|ui| {
-                            ui.strong("ID :");
+                            ui.strong(self.tr("target-id"));
                             ui.label(id);
                         });
                     }
 
                     ui.horizontal(|ui| {
-                        ui.strong("Nom :");
-                        ui.label(target.nom);
+                        ui.strong(self.tr("target-name"));
+                        ui.label(self.tr(target.name_key));
                     });
 
                     ui.horizontal(|ui| {
-                        ui.strong("Latin :");
-                        ui.label(target.latin);
+                        ui.strong(self.tr("target-latin"));
+                        ui.label(self.tr(target.latin_key));
                     });
 
                     if let Some(abbr) = target.abbr {
                         ui.horizontal(|ui| {
-                            ui.strong("Abbr :");
+                            ui.strong(self.tr("target-abbr"));
                             ui.label(abbr);
                         });
                     }
 
-                    if let Some(parent) = target.parent {
+                    if let Some(parent_key) = target.parent_key {
                         ui.horizontal(|ui| {
-                            ui.strong("Constellation :");
-                            ui.label(parent);
+                            ui.strong(self.tr("target-constellation"));
+                            ui.label(self.tr(parent_key));
                         });
                     }
 
                     ui.horizontal(|ui| {
-                        ui.strong("Saison :");
+                        ui.strong(self.tr("target-season"));
+                        let season_label = self.tr(target.season_key);
                         if !self.is_target_visible(target) {
-                            ui.colored_label(egui::Color32::RED, target.saison);
+                            ui.colored_label(egui::Color32::RED, season_label);
                         } else {
-                            ui.label(target.saison);
+                            ui.label(season_label);
                         }
                     });
 
                     ui.horizontal(|ui| {
-                        ui.strong("Déclinaison :");
+                        ui.strong(self.tr("target-declination"));
                         if target.dec <= (self.settings.latitude - 80.0) {
-                            ui.colored_label(egui::Color32::RED, format!("{:.1}° (Trop bas)", target.dec));
+                            ui.colored_label(egui::Color32::RED, format!("{:.1}° {}", target.dec, self.tr("target-too-low")));
                         } else {
                             ui.label(format!("{:.1}°", target.dec));
                         }
@@ -1140,25 +1274,47 @@ impl eframe::App for NpfApp {
                     ui.add_space(10.0);
 
                     // Rappel des paramètres de prise de vue
-                    ui.heading("Paramètres");
+                    ui.heading(self.tr("target-params-heading"));
                     ui.add_space(5.0);
                     let lens = &self.settings.lenses[self.settings.selected_lens_idx];
                     let sensor = &self.settings.sensors[self.settings.selected_sensor_idx];
-                    ui.label(format!("Objectif: {}", lens.name));
+                    
+                    let mut args = FluentArgs::new();
+                    args.set("name", lens.name.clone());
+                    ui.label(self.tr_args("target-lens-info", &args));
+                    
                     if lens.f_max > lens.f_min {
-                        ui.label(format!("Focale: {:.0}-{:.0}mm", lens.f_min, lens.f_max));
-                        ui.label(format!("Ouverture: f/{:.1}-f/{:.1}", lens.n_min, lens.n_max));
+                        let mut args_f = FluentArgs::new();
+                        args_f.set("min", lens.f_min);
+                        args_f.set("max", lens.f_max);
+                        ui.label(self.tr_args("target-focal-range", &args_f));
+
+                        let mut args_a = FluentArgs::new();
+                        args_a.set("min", lens.n_min);
+                        args_a.set("max", lens.n_max);
+                        ui.label(self.tr_args("target-aperture-range", &args_a));
                     } else {
-                        ui.label(format!("Focale: {:.0}mm", lens.f_min));
-                        ui.label(format!("Ouverture: f/{:.1}", lens.n_min));
+                        let mut args_f = FluentArgs::new();
+                        args_f.set("val", lens.f_min);
+                        ui.label(self.tr_args("target-focal-single", &args_f));
+
+                        let mut args_a = FluentArgs::new();
+                        args_a.set("val", lens.n_min);
+                        ui.label(self.tr_args("target-aperture-single", &args_a));
                     }
-                    ui.label(format!("Capteur: {} ({:.2} µm)", sensor.name, sensor.pixel_size));
+                    
+                    let mut args_s = FluentArgs::new();
+                    args_s.set("name", sensor.name.clone());
+                    args_s.set("pixel", sensor.pixel_size);
+                    ui.label(self.tr_args("target-sensor-info", &args_s));
                     
                     ui.add_space(10.0);
                     ui.separator();
                     ui.add_space(10.0);
                     
-                    ui.heading("Temps d'exposition (NPF)");
+                    let mut args_npf = FluentArgs::new();
+                    args_npf.set("dec", format!("{:.1}", target.dec));
+                    ui.heading(self.tr_args("target-exposure-at-dec", &args_npf));
                     ui.add_space(5.0);
                     
                     let pixel = sensor.pixel_size;
@@ -1186,21 +1342,29 @@ impl eframe::App for NpfApp {
                 });
             } else {
                 ui.vertical_centered(|ui| {
-                    ui.label("Sélectionnez un objet pour voir les détails.");
+                    ui.label(self.tr("select-target-hint"));
                 });
             }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let target_name = self.selected_target.as_ref().map(|t| t.id.unwrap_or(t.nom)).unwrap_or("Équateur");
+            let equator_tr = self.tr("chart-equator-label");
+            let target_name_string = self.selected_target.as_ref()
+                .map(|t| t.id.map(|id| id.to_string()).unwrap_or_else(|| self.tr(t.name_key)))
+                .unwrap_or(equator_tr);
+            let target_name = &target_name_string;
             let lens = &self.settings.lenses[self.settings.selected_lens_idx];
-            let titre = format!("{} | Cible : {}", lens.name, target_name);
+            
+            let mut args = FluentArgs::new();
+            args.set("lens", lens.name.clone());
+            args.set("target", target_name.to_string());
+            let titre = self.tr_args("chart-target-title", &args);
 
             ui.vertical_centered(|ui| {
                 ui.add_space(10.0);
                 ui.heading(titre);
                 ui.add_space(5.0);
-                ui.label("Cliquez et déplacez la souris sur le graphique pour le faire pivoter.");
+                ui.label(self.tr("chart-rotate-hint"));
                 ui.add_space(10.0);
             });
 
