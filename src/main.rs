@@ -430,26 +430,24 @@ fn get_color(t: f64, levels: &[f64]) -> HSLColor {
     // On cherche l'index du palier
     let mut idx = 0;
     for (i, &level) in levels.iter().enumerate() {
-        if t <= level {
+        if t < level {
             idx = i;
             break;
         }
-        idx = i;
+        idx = i + 1;
     }
     
-    let max_idx = (levels.len() - 1).max(1);
+    let max_idx = levels.len();
     let ratio = (idx as f64 / max_idx as f64).clamp(0.0, 1.0);
     
-    // Simulation de la palette Magma (du noir/violet au jaune/blanc)
-    let mut h = 0.8 - (ratio * 0.7);
-    let mut s = 0.8;
-    let mut l = 0.15 + (ratio * 0.7);
+    // Simulation d'une palette plus riche (du bleu/noir au jaune/blanc)
+    let h = 0.7 - (ratio * 0.75); // De 0.7 (bleu) à -0.05 (rouge/orangé)
+    let s = 0.9;
+    let l = 0.1 + (ratio * 0.8); // De 0.1 (sombre) à 0.9 (lumineux)
     
-    // Si le temps est très court (entre 0 et 0.5s), on met en noir
+    // Si le temps est très court (entre 0 et 0.5s), on met en gris très sombre
     if t <= 0.5 {
-        h = 0.0;
-        s = 0.0;
-        l = 0.0;
+        return HSLColor(0.0, 0.0, 0.05);
     }
     
     HSLColor(h, s, l)
@@ -457,7 +455,11 @@ fn get_color(t: f64, levels: &[f64]) -> HSLColor {
 
 fn calculer_npf(focale: f64, ouverture: f64, pixel: f64, dec: f64) -> f64 {
     let cos_dec = (dec.abs().to_radians()).cos().abs();
-    DEFAULT_K_FACTOR * (16.9 * ouverture + 0.1 * focale + 13.7 * pixel) / (focale * cos_dec)
+    let denom = focale * cos_dec;
+    if denom.abs() < f64::EPSILON {
+        return f64::MAX;
+    }
+    DEFAULT_K_FACTOR * (16.9 * ouverture + 0.1 * focale + 13.7 * pixel) / denom
 }
 
 struct NpfApp {
@@ -530,7 +532,10 @@ impl NpfApp {
             let sensor = &self.settings.sensors[self.settings.selected_sensor_idx];
             
             let f_min = lens.f_min;
-            let f_max = lens.f_max;
+            let mut f_max = lens.f_max;
+            if (f_max - f_min).abs() < 1e-6 {
+                f_max = f_min + 1.0;
+            }
             let n_min = lens.n_min;
             let _n_max = lens.n_max;
             let pixel_size = sensor.pixel_size;
@@ -547,9 +552,9 @@ impl NpfApp {
             let mut levels = Vec::new();
             // On s'assure que 0.5 est présent dans les paliers pour une coloration cohérente
             levels.push(0.5);
-            // Augmentation à 10 paliers pour une coloration plus fine et couvrant toute la plage de l'axe
-            for i in 1..10 {
-                let l = 0.5 + (z_max * 2.5 - 0.5) * (i as f64) / 9.0;
+            // Augmentation à 20 paliers pour une coloration beaucoup plus fine
+            for i in 1..20 {
+                let l = 0.5 + (z_max * 2.5 - 0.5) * (i as f64) / 19.0;
                 levels.push(l);
             }
 
@@ -570,9 +575,9 @@ impl NpfApp {
 
             chart.configure_axes()
                 .label_style(("sans-serif", 18).into_font().color(&BLACK))
-                .x_labels(5)
-                .y_labels(5)
-                .z_labels(5)
+                .x_labels(10)
+                .y_labels(10)
+                .z_labels(10)
                 .axis_panel_style(WHITE.mix(0.1))
                 .light_grid_style(BLACK.mix(0.1))
                 .bold_grid_style(BLACK.mix(0.2))
@@ -825,78 +830,83 @@ impl eframe::App for NpfApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.show_settings {
-            egui::Window::new("Paramètres - Objectifs et Capteurs").show(ctx, |ui| {
-                ui.heading("Capteurs");
-                let mut to_remove_sensor = None;
-                let num_sensors = self.settings.sensors.len();
-                for i in 0..num_sensors {
-                    let sensor = &mut self.settings.sensors[i];
-                    ui.horizontal(|ui| {
-                        ui.text_edit_singleline(&mut sensor.name);
-                        ui.add(egui::DragValue::new(&mut sensor.pixel_size).speed(0.01).prefix("Pixel: ").suffix(" µm"));
-                        if ui.button("🗑").clicked() && num_sensors > 1 {
-                            to_remove_sensor = Some(i);
+            let max_height = ctx.screen_rect().height() * 0.75;
+            egui::Window::new("Paramètres - Objectifs et Capteurs")
+                .max_height(max_height)
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.heading("Capteurs");
+                        let mut to_remove_sensor = None;
+                        let num_sensors = self.settings.sensors.len();
+                        for i in 0..num_sensors {
+                            let sensor = &mut self.settings.sensors[i];
+                            ui.horizontal(|ui| {
+                                ui.text_edit_singleline(&mut sensor.name);
+                                ui.add(egui::DragValue::new(&mut sensor.pixel_size).speed(0.01).clamp_range(0.1..=100.0).prefix("Pixel: ").suffix(" µm"));
+                                if ui.button("🗑").clicked() && num_sensors > 1 {
+                                    to_remove_sensor = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = to_remove_sensor {
+                            self.settings.sensors.remove(i);
+                            if self.settings.selected_sensor_idx >= self.settings.sensors.len() {
+                                self.settings.selected_sensor_idx = 0;
+                            }
+                            self.needs_update = true;
+                        }
+                        if ui.button("+ Ajouter un capteur").clicked() {
+                            self.settings.sensors.push(SensorConfig::default());
+                        }
+
+                        ui.separator();
+
+                        ui.heading("Objectifs");
+                        let mut to_remove_lens = None;
+                        let num_lenses = self.settings.lenses.len();
+                        for i in 0..num_lenses {
+                            let lens = &mut self.settings.lenses[i];
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut lens.name);
+                                    if ui.button("🗑").clicked() && num_lenses > 1 {
+                                        to_remove_lens = Some(i);
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::DragValue::new(&mut lens.f_min).speed(0.1).clamp_range(0.1..=10000.0).prefix("Fmin: ").suffix(" mm"));
+                                    ui.add(egui::DragValue::new(&mut lens.f_max).speed(0.1).clamp_range(0.1..=10000.0).prefix("Fmax: ").suffix(" mm"));
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::DragValue::new(&mut lens.n_min).speed(0.1).clamp_range(0.1..=64.0).prefix("f/min: "));
+                                    ui.add(egui::DragValue::new(&mut lens.n_max).speed(0.1).clamp_range(0.1..=64.0).prefix("f/max: "));
+                                });
+                            });
+                        }
+                        if let Some(i) = to_remove_lens {
+                            self.settings.lenses.remove(i);
+                            if self.settings.selected_lens_idx >= self.settings.lenses.len() {
+                                self.settings.selected_lens_idx = 0;
+                            }
+                            self.needs_update = true;
+                        }
+                        if ui.button("+ Ajouter un objectif").clicked() {
+                            self.settings.lenses.push(LensConfig {
+                                name: "Nouvel Objectif".to_string(),
+                                f_min: 50.0,
+                                f_max: 50.0,
+                                n_min: 1.8,
+                                n_max: 1.8,
+                            });
+                        }
+
+                        ui.add_space(10.0);
+                        if ui.button("Fermer et appliquer").clicked() {
+                            self.show_settings = false;
+                            self.needs_update = true;
                         }
                     });
-                }
-                if let Some(i) = to_remove_sensor {
-                    self.settings.sensors.remove(i);
-                    if self.settings.selected_sensor_idx >= self.settings.sensors.len() {
-                        self.settings.selected_sensor_idx = 0;
-                    }
-                    self.needs_update = true;
-                }
-                if ui.button("+ Ajouter un capteur").clicked() {
-                    self.settings.sensors.push(SensorConfig::default());
-                }
-
-                ui.separator();
-
-                ui.heading("Objectifs");
-                let mut to_remove_lens = None;
-                let num_lenses = self.settings.lenses.len();
-                for i in 0..num_lenses {
-                    let lens = &mut self.settings.lenses[i];
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.text_edit_singleline(&mut lens.name);
-                            if ui.button("🗑").clicked() && num_lenses > 1 {
-                                to_remove_lens = Some(i);
-                            }
-                        });
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut lens.f_min).speed(0.1).prefix("Fmin: ").suffix(" mm"));
-                            ui.add(egui::DragValue::new(&mut lens.f_max).speed(0.1).prefix("Fmax: ").suffix(" mm"));
-                        });
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut lens.n_min).speed(0.1).prefix("f/min: "));
-                            ui.add(egui::DragValue::new(&mut lens.n_max).speed(0.1).prefix("f/max: "));
-                        });
-                    });
-                }
-                if let Some(i) = to_remove_lens {
-                    self.settings.lenses.remove(i);
-                    if self.settings.selected_lens_idx >= self.settings.lenses.len() {
-                        self.settings.selected_lens_idx = 0;
-                    }
-                    self.needs_update = true;
-                }
-                if ui.button("+ Ajouter un objectif").clicked() {
-                    self.settings.lenses.push(LensConfig {
-                        name: "Nouvel Objectif".to_string(),
-                        f_min: 50.0,
-                        f_max: 50.0,
-                        n_min: 1.8,
-                        n_max: 1.8,
-                    });
-                }
-
-                ui.add_space(10.0);
-                if ui.button("Fermer et appliquer").clicked() {
-                    self.show_settings = false;
-                    self.needs_update = true;
-                }
-            });
+                });
         }
 
         if self.needs_update {
