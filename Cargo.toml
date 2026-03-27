@@ -35,5 +35,5 @@ formats = ["nsis"]
 # upgrade_code = "f3d2a7a4-8b6c-4e8a-9d6e-123456789abc"
 
 [[package.metadata.packager.binaries]]
-path = "target/release/AstroTool-NpfCalc.exe"
+path = "AstroTool-NpfCalc.exe"
 main = true
