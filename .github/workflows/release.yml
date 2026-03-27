@@ -15,24 +15,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-packager (binary)
-        shell: pwsh
-        run: |
-          $url = "https://github.com/crabnebula-dev/cargo-packager/releases/latest/download/cargo-packager_x86_64-pc-windows-msvc.zip"
-          Invoke-WebRequest -Uri $url -OutFile cargo-packager.zip
-          Expand-Archive -Path cargo-packager.zip -DestinationPath .
-          Move-Item -Path cargo-packager.exe -Destination "$HOME\.cargo\bin\cargo-packager.exe" -Force
-
+      - name: Install cargo-packager
+        run: cargo install cargo-packager
       - name: Build Binary
         run: cargo build --release
-
       - name: Build EXE (NSIS)
         run: cargo packager --release
       - name: Upload EXE
@@ -46,18 +34,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwayland-dev libxkbcommon-dev build-essential
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
       - name: Build
         run: cargo build --release
       - name: Create Package
