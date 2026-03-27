@@ -1,17 +1,10 @@
 # Script de préparation de la distribution pour AstroTool-NpfCalc
 
-# 1. Vérification de l'installation de cargo-wix pour Windows (MSI)
-Write-Host "Vérification de cargo-wix pour l'installeur Windows..."
-if (!(Get-Command cargo-wix -ErrorAction SilentlyContinue)) {
-    Write-Host "Installation de cargo-wix (cela peut prendre quelques minutes)..."
-    cargo install cargo-wix
-}
-
-# 2. Build de la version Release
+# 1. Build de la version Release
 Write-Host "Compilation en mode Release..."
 cargo build --release
 
-# 3. Création de l'installeur Windows (EXE via NSIS)
+# 2. Création de l'installeur Windows (EXE via NSIS)
 Write-Host "Génération de l'installeur EXE avec NSIS (via cargo-packager)..."
 
 if (!(Get-Command cargo-packager -ErrorAction SilentlyContinue)) {
@@ -43,14 +36,7 @@ if (!$nsis_path) {
     Write-Host "Pour générer l'installeur .exe, veuillez installer NSIS :"
     Write-Host "1. Téléchargez-le ici : https://nsis.sourceforge.io/Download"
     Write-Host "2. Assurez-vous que le dossier d'installation est dans votre PATH (ex: C:\Program Files (x86)\NSIS)."
-    
-    # On propose quand même WiX en secours si déjà là
-    if (Get-Command wix.exe -ErrorAction SilentlyContinue) {
-        Write-Host "`nTentative de repli sur WiX car NSIS est manquant..."
-        cargo packager --release --formats wix
-    } else {
-        exit 1
-    }
+    exit 1
 } else {
     Write-Host "Détection de NSIS : $($nsis_path.Source)"
     cargo packager --release --formats nsis
@@ -59,19 +45,8 @@ if (!$nsis_path) {
     }
 }
 
-# 4. Optionnel : Génération MSI (WiX) si disponible
-if (Get-Command wix.exe -ErrorAction SilentlyContinue) {
-    Write-Host "`nGénération de l'installeur MSI (WiX v4+)..."
-    try {
-        cargo packager --release --formats wix
-    } catch {
-        Write-Host "Note : L'installeur MSI a échoué (souvent dû à des dépendances WiX v3 manquantes), mais l'EXE NSIS devrait être disponible." -ForegroundColor Yellow
-    }
-}
-
-# 4. Préparation de l'archive Linux (tgz)
+# 3. Préparation de l'archive Linux (tgz)
 # Note: Cela nécessite un environnement Linux ou une cross-compilation configurée.
 # Sur Windows, nous recommandons d'utiliser le workflow GitHub Actions fourni dans .github/workflows/release.yml
 Write-Host "`nPour générer le .tar.gz Linux sur Windows, utilisez WSL ou le workflow GitHub Actions."
 Write-Host "L'installeur Windows (.exe) se trouve dans : target\release\AstroTool-NpfCalc_0.1.0_x64-setup.exe" -ForegroundColor Green
-Write-Host "L'installeur Windows (.msi) se trouverait dans : target\release\bundle\wix\ (si activé)"
