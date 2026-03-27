@@ -24,16 +24,3 @@ authors = ["Junie <junie@jetbrains.com>"]
 description = "Calculateur de temps de pose NPF pour l'astrophotographie."
 # Formats de sortie (NSIS pour l'installateur Windows EXE)
 formats = ["nsis"]
-
-[package.metadata.packager.windows]
-# Icône optionnelle si vous en avez une (ex: "assets/icon.ico")
-# icon = "assets/icon.ico"
-
-[package.metadata.packager.wix]
-# WiX v4+ est utilisé par défaut si wix.exe est dans le PATH
-# Vous pouvez aussi définir un GUID pour l'application ici
-# upgrade_code = "f3d2a7a4-8b6c-4e8a-9d6e-123456789abc"
-
-[[package.metadata.packager.binaries]]
-path = "AstroTool-NpfCalc.exe"
-main = true
