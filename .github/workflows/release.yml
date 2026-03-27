@@ -25,8 +25,7 @@ jobs:
       - name: Install cargo-packager (binary)
         shell: pwsh
         run: |
-          $version = "0.11.1"
-          $url = "https://github.com/crabnebula-dev/cargo-packager/releases/download/cargo-packager-v$version/cargo-packager_x86_64-pc-windows-msvc.zip"
+          $url = "https://github.com/crabnebula-dev/cargo-packager/releases/latest/download/cargo-packager_x86_64-pc-windows-msvc.zip"
           Invoke-WebRequest -Uri $url -OutFile cargo-packager.zip
           Expand-Archive -Path cargo-packager.zip -DestinationPath .
           Move-Item -Path cargo-packager.exe -Destination "$HOME\.cargo\bin\cargo-packager.exe" -Force
