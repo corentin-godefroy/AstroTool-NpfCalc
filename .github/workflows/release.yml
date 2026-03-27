@@ -27,7 +27,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: astrotool-npfcalc-windows
-          path: target/release/bundle/nsis/*.exe
+          path: target/release/*-setup.exe
 
   build-linux:
     name: Build Linux (tar.gz)
