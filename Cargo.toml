@@ -22,8 +22,8 @@ identifier = "com.astrotool.npfcalc"
 category = "Education"
 authors = ["Junie <junie@jetbrains.com>"]
 description = "Calculateur de temps de pose NPF pour l'astrophotographie."
-# Formats de sortie (MSI utilise WiX v4+)
-formats = ["wix", "nsis"]
+# Formats de sortie (NSIS pour l'installateur Windows EXE)
+formats = ["nsis"]
 
 [package.metadata.packager.windows]
 # Icône optionnelle si vous en avez une (ex: "assets/icon.ico")
