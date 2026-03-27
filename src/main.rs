@@ -1354,8 +1354,10 @@ impl eframe::App for NpfApp {
                 .unwrap_or(equator_tr);
             let target_name = &target_name_string;
             let lens = &self.settings.lenses[self.settings.selected_lens_idx];
+            let camera = &self.settings.sensors[self.settings.selected_sensor_idx];
             
             let mut args = FluentArgs::new();
+            args.set("camera", camera.name.clone());
             args.set("lens", lens.name.clone());
             args.set("target", target_name.to_string());
             let titre = self.tr_args("chart-target-title", &args);

@@ -1,52 +1,52 @@
 # AstroTool-NpfCalc
 
-Calculateur de temps de pose NPF pour l'astrophotographie.
+NPF exposure time calculator for astrophotography.
 
-## Fonctionnalités
-- Calcul de la règle NPF pour éviter le filé d'étoiles.
-- Visualisation 3D dynamique de la nappe NPF.
-- Base de données d'objets célestes (Messier, Constellations, etc.).
-- Filtrage par latitude et saison.
-- Gestion du matériel (Capteurs et Objectifs).
+## Features
+- NPF rule calculation to avoid star trailing.
+- Dynamic 3D visualization of the NPF surface.
+- Celestial objects database (Messier, Constellations, etc.).
+- Filtering by latitude and season.
+- Equipment management (Sensors and Lenses).
 
 ## Installation
 
 ### Windows
-Téléchargez et lancez le fichier d'installation `.exe` (recommandé).
+Download and run the `.exe` installer file (recommended).
 
 ### Linux
-Extrayez l'archive `.tar.gz` et lancez l'exécutable.
+Extract the `.tar.gz` archive and run the executable.
 
-## Développement
+## Development
 
-### Compiler et distribuer (Windows)
-**Prérequis :**
-- [NSIS](https://nsis.sourceforge.io/) (Recommandé) : Pour générer l'installeur `.exe`.
+### Build and Distribute (Windows)
+**Prerequisites:**
+- [NSIS](https://nsis.sourceforge.io/) (Recommended): To generate the `.exe` installer.
 
-Pour générer l'installeur, exécutez le script PowerShell suivant :
+To generate the installer, run the following PowerShell script:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process; .\build_dist.ps1
 ```
-ou simplement :
+or simply:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build_dist.ps1
 ```
 
-## Licence
+## License
 
-Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
 
-## Crédits
+## Credits
 
-### Bibliothèques logicielles
-Ce projet utilise les bibliothèques suivantes :
-- **[egui](https://github.com/emilk/egui)** : Bibliothèque d'interface utilisateur graphique immédiate.
-- **[plotters](https://github.com/plotters-rs/plotters)** : Bibliothèque de traçage de graphiques Rust.
-- **[fluent](https://projectfluent.org/)** : Système de localisation pour des traductions naturelles.
-- **[serde](https://serde.rs/)** : Framework de sérialisation/désérialisation.
+### Software Libraries
+This project uses the following libraries:
+- **[egui](https://github.com/emilk/egui)**: Immediate-mode graphical user interface library.
+- **[plotters](https://github.com/plotters-rs/plotters)**: Rust plotting library.
+- **[fluent](https://projectfluent.org/)**: Localization system for natural-sounding translations.
+- **[serde](https://serde.rs/)**: Serialization/deserialization framework.
 
-### Données astronomiques
-Les données d'objets célestes (Messier, Constellations, Nébuleuses) sont basées sur des catalogues astronomiques publics.
-- Catalogue de Messier
+### Astronomical Data
+Celestial object data (Messier, Constellations, Nebulae) are based on public astronomical catalogs.
+- Messier Catalog
 - New General Catalogue (NGC)
 - Index Catalogue (IC)

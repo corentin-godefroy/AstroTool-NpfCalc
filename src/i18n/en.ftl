@@ -57,7 +57,7 @@ chart-focal-label = Focal length (mm)
 chart-exposure-label = Exposure time (s)
 chart-declination-label = Declination (°)
 chart-equator-label = Equator
-chart-target-title = { $lens } | Target: { $target }
+chart-target-title = { $camera } + { $lens } | Target: { $target }
 
 # Target info
 target-info-title = Target Information
