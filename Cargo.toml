@@ -1,0 +1,42 @@
+[package]
+name = "AstroTool-NpfCalc"
+version = "0.1.0"
+edition = "2024"
+authors = ["Junie <junie@jetbrains.com>"]
+description = "Calculateur de temps de pose NPF pour l'astrophotographie."
+license = "MIT"
+repository = "https://github.com/user/AstroTool-NpfCalc"
+readme = "README.md"
+
+[dependencies]
+eframe = { version = "0.24.1", features = ["persistence"] }
+once_cell = "1.21.3"
+plotters = { version = "0.3.5" }
+ndarray = "0.15.6"
+image = "0.24.7"
+serde = { version = "1.0", features = ["derive"] }
+ron = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "shlobj", "libloaderapi", "windef", "winbase", "wingdi", "winnt", "winerror"] }
+[package.metadata.packager]
+product_name = "AstroTool-NpfCalc"
+identifier = "com.astrotool.npfcalc"
+category = "Education"
+authors = ["Junie <junie@jetbrains.com>"]
+description = "Calculateur de temps de pose NPF pour l'astrophotographie."
+# Formats de sortie (MSI utilise WiX v4+)
+formats = ["wix", "nsis"]
+
+[package.metadata.packager.windows]
+# Icône optionnelle si vous en avez une (ex: "assets/icon.ico")
+# icon = "assets/icon.ico"
+
+[package.metadata.packager.wix]
+# WiX v4+ est utilisé par défaut si wix.exe est dans le PATH
+# Vous pouvez aussi définir un GUID pour l'application ici
+# upgrade_code = "f3d2a7a4-8b6c-4e8a-9d6e-123456789abc"
+
+[[package.metadata.packager.binaries]]
+path = "AstroTool-NpfCalc.exe"
+main = true
