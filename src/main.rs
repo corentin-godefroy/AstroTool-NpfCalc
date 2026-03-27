@@ -829,7 +829,7 @@ impl NpfApp {
             // Légende manuelle en bas à droite pour la ligne cyan
             let leg_x_end = width as i32 - 40;
             let leg_y_bottom = height as i32 - 40;
-            let leg_text = format!("{} : {}", self.tr("lens-label"), target_name);
+            let leg_text = format!("{} : {}", self.tr("target-label"), target_name);
             let leg_style = ("sans-serif", 20).into_font().color(&BLACK);
             let (text_w, _text_h) = root_base.estimate_text_size(&leg_text, &leg_style).unwrap_or((150, 20));
             
