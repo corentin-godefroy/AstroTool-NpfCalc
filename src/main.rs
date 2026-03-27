@@ -454,14 +454,14 @@ impl Default for NpfApp {
         let mut bundles = HashMap::new();
         
         // Chargement du français
-        let res_fr = FluentResource::try_new(include_str!("../i18n/fr.ftl").to_owned()).expect("Failed to parse fr.ftl");
+        let res_fr = FluentResource::try_new(include_str!("i18n/fr.ftl").to_owned()).expect("Failed to parse fr.ftl");
         let lang_fr: LanguageIdentifier = "fr".parse().expect("Parsing failed");
         let mut bundle_fr = FluentBundle::new(vec![lang_fr]);
         bundle_fr.add_resource(res_fr).expect("Failed to add resource");
         bundles.insert("fr".to_string(), bundle_fr);
 
         // Chargement de l'anglais
-        let res_en = FluentResource::try_new(include_str!("../i18n/en.ftl").to_owned()).expect("Failed to parse en.ftl");
+        let res_en = FluentResource::try_new(include_str!("i18n/en.ftl").to_owned()).expect("Failed to parse en.ftl");
         let lang_en: LanguageIdentifier = "en".parse().expect("Parsing failed");
         let mut bundle_en = FluentBundle::new(vec![lang_en]);
         bundle_en.add_resource(res_en).expect("Failed to add resource");
