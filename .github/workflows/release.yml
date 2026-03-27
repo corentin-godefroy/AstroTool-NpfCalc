@@ -16,6 +16,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-packager
         run: cargo install cargo-packager
+      - name: Build Binary
+        run: cargo build --release
       - name: Build EXE (NSIS)
         run: cargo packager --release
       - name: Upload EXE
